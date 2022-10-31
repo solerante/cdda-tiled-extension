@@ -1,5 +1,21 @@
 # Tiled extension for Cataclysm: Dark Days Ahead
 
+Add the extension to your Tiled extensions folder.
+https://doc.mapeditor.org/en/stable/reference/scripting/#script-extensions
+
+=======
+
+File > Import CDDA Tileset
+Import tilesets installed in CDDA folder by name.
+
+File > Import CDDA Map
+Import a CDDA map by it's path, based on imported tileset.
+
+(with Tiled map open) File > Export As... > CDDA map format
+Export the current map for CDDA.
+
+=======
+
 What works
 - nothing
 
