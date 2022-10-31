@@ -1,5 +1,4 @@
 /// <reference types="@mapeditor/tiled-api" />
-//UltimateCataclysm
 //ChibiUltica
 //0x400 | 0x2000 | 0x4000 qdir filter for dir no dot and dotdot
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
@@ -37,31 +36,9 @@ function initialize(){
         if( !File.exists(config.pathToTSX)){File.makePath(config.pathToTSX);}
         if( !File.exists(config.pathToTMX)){File.makePath(config.pathToTMX);}
     }
-    // this.filename = "tiled_cdda_extension.config";
-    // this.pathToProject = FileInfo.toNativeSeparators("~/cdda_tiled_project");
-    // this.pathToTSX = FileInfo.toNativeSeparators(pathToProject + "tsx/")
-    // this.pathToTMX = FileInfo.toNativeSeparators(pathToProject + "tmx/")
-    // this.pathToCDDA = FileInfo.toNativeSeparators("~/cdda");
-    // this.pathToTilesets = FileInfo.toNativeSeparators(PathToCDDA + "gfx/")
-    // this.pathToPalettes = FileInfo.toNativeSeparators(PathToCDDA + "data/json/mapgen_palettes/")
-    // this.chosenTileset = "ChibiUltica"
-    // this.pathToTileSet = FileInfo.toNativeSeparators(PathToCDDA + "gfx/")
-    // this.pathToChosenTileset = FileInfo.toNativeSeparators(PathToCDDA + "gfx/" + chosenTileset)
-    // this.pathToJSON = FileInfo.toNativeSeparators(PathToChosenTileSet + "tile_config.json")
 }
 
 
-    /*TODO
-    ask about folders
-    get all filenames to expect
-    check if files already made
-    fill in missing files
-    ask if overwrite/update eixisting
-
-    let q = new Qt.QWidget()
-    let loc = new Qt.FileEdit()
-    tiled.log(loc)
-    */
 //tiled.tilesetFormat("tsx").write(ts,pathToTSXFile)
 function writeToFile(filepath,data) {
     var format = filepath.match(/\.(.+)$/)
