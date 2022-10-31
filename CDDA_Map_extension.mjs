@@ -3,56 +3,54 @@
 //ChibiUltica
 //0x400 | 0x2000 | 0x4000 qdir filter for dir no dot and dotdot
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
+//JSON.stringify(m, null, 2) sringify with formatting
 var verbose = true
-var pathToProject = FileInfo.toNativeSeparators('E:/df/tileset/')
-var PathToCDDA = FileInfo.toNativeSeparators('E:/df/cdda/dda/current/')
-var PathToTileSets = PathToCDDA + FileInfo.toNativeSeparators('gfx/')
-var ChosenTileSet = 'ChibiUltica'
-var pathToPalettes = PathToCDDA + FileInfo.toNativeSeparators('data/json/mapgen_palettes/')
-var pathToTSX = FileInfo.toNativeSeparators(pathToProject+'tsx/')
-
-var PathToTileSet = FileInfo.toNativeSeparators(ChosenTileSet + '/')
-var PathToJSON = PathToTileSets + PathToTileSet + 'tile_config.json'
 
 const mapLayerTypes = ['terrain','furniture']
 
 var skipOverlays = true;
 var overwriteExisting = false;
+var config = {}
 
 
-function writeToFile(filename,format,data) {
-    const file = new TextFile(pathToProject+filename + "." + format, TextFile.WriteOnly);
-    if (format == 'tsx'){
-        tiled.tilesetFormat(format).write(data, pathToProject + filename + "." + format)
-    }
-    if (format == 'tmx'){
-        tiled.mapFormat(format).write(data, pathToProject + filename + "." + format)
-    }
-}
-function readJSONFile(filepath){
-        const file = new TextFile(filepath, TextFile.ReadOnly)
-        const file_data = file.readAll()
-        file.close()
-        return JSON.parse(file_data)
-}
-function getRecursiveFilePathsInFolder(targetPath){
-    if (verbose){tiled.log(`getting paths to palette files`);};
-    let filePaths = getFilesInPath(targetPath).map(a => targetPath+a)
-    let folderPaths = getFoldersInPath(targetPath).map(a => targetPath+a);
-    for (let folderPath in folderPaths){
-        filePaths = filePaths.concat(getFilesInPath(folderPath).map(a => folderPath+a));
-        let subfolders = getFoldersInPath(folderPath).map(a => folderPath+a)
-        for (let subfolder in subfolders){
-            if ( subfolders != null ) { folderPaths.push(subfolder) }
-        }
-    }
-    if (verbose){tiled.log(`palette file paths`);};
-    if (verbose){tiled.log(filePaths);};
-    return filePaths;
-}
-function getFilesInPath(path){ return File.directoryEntries(path, 0x002 | 0x2000 | 0x4000);}
-function getFoldersInPath(path){ return File.directoryEntries(path, 0x400 | 0x2000 | 0x4000);}
 function initialize(){
+    // if ( Object.keys(config).length != 0 ) { return; }
+    // var activeAsset = tiled.activeAsset;
+    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:","~/cdda_tiled_project","Tiled Project Path"))
+    var pathToConfig = FileInfo.toNativeSeparators(pathToProject+"/tiled_cdda_extension.json")
+    if(!File.exists(pathToProject)){File.makePath(pathToProject);}
+
+    if(!File.exists(pathToConfig)){
+        tiled.log(`no config file found at ${pathToConfig}. Making new config file.`) 
+        let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA folder:",config.pathToCDDA,"CDDA Path"))
+        config = new extensionConfig(pathToProject,givenPathToCDDA);
+        config.chosenTileset = tiled.prompt("Choose a tileset by name:","ChibiUltica","Tileset Name")
+        if( !File.exists(config.pathToTSX)){File.makePath(config.pathToTSX);}
+        if( !File.exists(config.pathToTMX)){File.makePath(config.pathToTMX);}
+
+        var file = new TextFile(pathToConfig, TextFile.WriteOnly);
+        file.write(JSON.stringify(config,null,2));
+        file.commit();
+    } else {
+        tiled.log(`config file found at ${pathToConfig}`) 
+        config = readJSONFile(pathToConfig)
+        if( !File.exists(config.pathToTSX)){File.makePath(config.pathToTSX);}
+        if( !File.exists(config.pathToTMX)){File.makePath(config.pathToTMX);}
+    }
+    // this.filename = "tiled_cdda_extension.config";
+    // this.pathToProject = FileInfo.toNativeSeparators("~/cdda_tiled_project");
+    // this.pathToTSX = FileInfo.toNativeSeparators(pathToProject + "tsx/")
+    // this.pathToTMX = FileInfo.toNativeSeparators(pathToProject + "tmx/")
+    // this.pathToCDDA = FileInfo.toNativeSeparators("~/cdda");
+    // this.pathToTilesets = FileInfo.toNativeSeparators(PathToCDDA + "gfx/")
+    // this.pathToPalettes = FileInfo.toNativeSeparators(PathToCDDA + "data/json/mapgen_palettes/")
+    // this.chosenTileset = "ChibiUltica"
+    // this.pathToTileSet = FileInfo.toNativeSeparators(PathToCDDA + "gfx/")
+    // this.pathToChosenTileset = FileInfo.toNativeSeparators(PathToCDDA + "gfx/" + chosenTileset)
+    // this.pathToJSON = FileInfo.toNativeSeparators(PathToChosenTileSet + "tile_config.json")
+}
+
+
     /*TODO
     ask about folders
     get all filenames to expect
@@ -64,21 +62,42 @@ function initialize(){
     let loc = new Qt.FileEdit()
     tiled.log(loc)
     */
-
-    //prompt(label: string, text?: string, title?: string): string
-    //tiled.prompt("Path to project: ")
-    let projfiles = File.directoryEntries(pathToProject)
-    const projstring = '.tiled-project'
-    const matches = projfiles.filter(element => {
-        if (element.includes(projstring)) {
-            return true;
-        }
-    });
-    tiled.log(`matches: ${matches}`)
-    //confirm(text: string, title?: string): boolean
-    let txt = new FileEdit();
-    tiled.log(`txt: ${txt}`)
+//tiled.tilesetFormat("tsx").write(ts,pathToTSXFile)
+function writeToFile(filepath,data) {
+    var format = filepath.match(/\.(.+)$/)
+    // const file = new TextFile(filepath, TextFile.WriteOnly);
+    if (format == 'tsx'){
+        tiled.log(`Writing to file: '${filepath}'`)
+        return tiled.tilesetFormat(format[1]).write(data, filepath);
+    }
+    if (format == 'tmx'){
+        tiled.log(`Writing to file: '${filepath}'`)
+        return tiled.mapFormat(format[1]).write(data, filepath);
+    }
 }
+function readJSONFile(filepath){
+        const file = new TextFile(filepath, TextFile.ReadOnly)
+        const file_data = file.readAll()
+        file.close()
+        return JSON.parse(file_data)
+}
+function getRecursiveFilePathsInFolder(targetPath){
+    if (verbose){tiled.log(`getting paths to palette files`);};
+    let filePaths = getFilesInPath(targetPath).map(a => FileInfo.toNativeSeparators(targetPath+"/"+a))
+    let folderPaths = getFoldersInPath(targetPath).map(a => targetPath+"/"+a);
+    for (let folderPath in folderPaths){
+        filePaths = filePaths.concat(getFilesInPath(folderPath).map(a => folderPath+"/"+a));
+        let subfolders = getFoldersInPath(folderPath).map(a => folderPath+"/"+a)
+        for (let subfolder in subfolders){
+            if ( subfolders != null ) { folderPaths.push(subfolder) }
+        }
+    }
+    if (verbose){tiled.log(`palette file paths`);};
+    if (verbose){tiled.log(filePaths);};
+    return filePaths;
+}
+function getFilesInPath(path){ return File.directoryEntries(path, 0x002 | 0x2000 | 0x4000);}
+function getFoldersInPath(path){ return File.directoryEntries(path, 0x400 | 0x2000 | 0x4000);}
 function processTileset(j,i){
     //tiled.log(`i: ${i}`)
 
@@ -89,7 +108,7 @@ function processTileset(j,i){
     jts.name = FileInfo.baseName(imgFile)
 
     //skip existing ("just skip existing altogether bro") and 'fallback'
-    let shouldSkip = !overwriteExisting && File.exists(pathToTSX + jts.name + ".tsx") || skipOverlays && imgFile.match(/(fallback)/);
+    let shouldSkip = !overwriteExisting && File.exists(config.pathToTSX + "/" + jts.name + ".tsx") || skipOverlays && imgFile.match(/(fallback)/);
     if (shouldSkip){
         tiled.log(`skipping ${jts.name}`)
         return [0,0];
@@ -118,7 +137,7 @@ function processTileset(j,i){
 
     //construct tiled tileset
     var ts = new Tileset(jts.name);
-    tiled.log((ts.isTileset) ? "new tileset created: " + ts.name : "no tileset made");
+    tiled.log((ts.isTileset) ? `new tileset created: '${ts.name}'` : `Failed to make tileset '${ts.name}'`);
 
     (typeof jts.width == 'number') ? ts.tileWidth = jts.width : ts.tileWidth = j['tile_info'][0]['width'];
     (typeof jts.height == 'number') ? ts.tileHeight = jts.height : ts.tileHeight = j['tile_info'][0]['width'];
@@ -127,13 +146,15 @@ function processTileset(j,i){
 
     //load tilesheet image from file
     let img = new Image(jts.name);
-    img.load(PathToTileSets+PathToTileSet+imgFile);
-    tiled.log(`Image is ${img.width} by ${img.height} - ${PathToTileSets+PathToTileSet+imgFile}`)
+    let pathToChosenTileset = FileInfo.toNativeSeparators(config.pathToChosenTileset+"/"+imgFile)
+    img.load(pathToChosenTileset);
+    tiled.log(`Image is ${img.width} by ${img.height} - ${pathToChosenTileset}`)
 
     //load tilesheet image into tilesheet (source not embed)
-    ts.loadFromImage(img,PathToTileSets+PathToTileSet+imgFile)
+    ts.loadFromImage(img,pathToChosenTileset)
 
-    tiled.log(`tileset name: ${ts.resolvedProperty('name')}`)
+    tiled.log(`tileset name: ${ts.name}`)
+    tiled.log(`tileset image: ${FileInfo.toNativeSeparators(ts.image)}`)
     tiled.log(`number of sprites: ${ts.tileCount}`)
 
     return {ts,jts};
@@ -246,7 +267,7 @@ function importSpriteData(ts,jts,j,i){
 }
 function importTilesets(filename){
 
-    File.makePath(pathToProject+'\\tsx')
+    // File.makePath(config.pathtoProject+'\\tsx')
 
     //read tileset config file
     let f = new TextFile(filename, TextFile.ReadOnly);
@@ -258,22 +279,20 @@ function importTilesets(filename){
     var tilesetInfoHeight = j['tile_info'][0]['height']
     var tilesetInfoPixelscale = j['tile_info'][0]['pixelscale']
 
-    tiled.log(`Importing '${ChosenTileSet}' with dimensions w:${tilesetInfoWidth} h:${tilesetInfoHeight} pixelscale:${tilesetInfoPixelscale}`)
+    tiled.log(`Importing '${config.chosenTileset}' with dimensions w:${tilesetInfoWidth} h:${tilesetInfoHeight} pixelscale:${tilesetInfoPixelscale}`)
 
     //iterate over tilset config entries
 
-    for (let i in j['tiles-new']){
-        let {ts,jts} = processTileset(j,i)
-        if (ts == null){
-            continue
-        }
-        ts = importSpriteData(ts,jts,j,i)
-
-        let pathToTSX = "tsx\\" + ts.name
-        let outputFileResults = writeToFile(pathToTSX,"tsx",ts);
-        (outputFileResults == null) ? tiled.log(ts.name + " file created successfully.") : tiled.log(ts.name + " - FAILED to create file. Error: " + outputFileResults)
-        tiled.log('-----TSX------')
-        tiled.log('-----DONE-----')
+    for (let t in j['tiles-new']){
+        let {ts,jts} = processTileset(j,t)
+        if (ts == null){ continue; }
+        ts = importSpriteData(ts,jts,j,t)
+        let pathToTSXFile = FileInfo.toNativeSeparators(config.pathToTSX + "/" + ts.name+".tsx");
+        tiled.log(`Preparing to write ${(ts.isTileset) ? `tilesheet` : `not a tilesheet`} '${ts.name}' to '${pathToTSXFile}'`)
+        // let outputFileResults = writeToFile(pathToTSXFile,ts);
+        let outputFileResults = tiled.tilesetFormat("tsx").write(ts,pathToTSXFile)
+        // (outputFileResults == null) ? tiled.log(ts.name + " file created successfully.") : tiled.log(`FAILED to create file at '${pathToTSXFile}'' - Error: ${outputFileResults}`)
+        tiled.log('------------------------TSX DONE-------------------------')
 
     }
 }
@@ -308,9 +327,9 @@ function makeEmptyMap(){
     tm.addLayer(items)
     tm.addLayer(entities)
 
-    File.makePath(pathToProject+'\\tmx')
-    let pathToTMX = "tmx\\" + tmname
-    let outputFileResults = writeToFile(pathToTMX,"tmx",tm);
+    let filepath = config.pathToTMX+"/"+tmname+".tmx"
+        // return tiled.mapFormat(format[1]).write(data, filepath);
+    let outputFileResults = writeToFile(filepath,tm);
     (outputFileResults == null) ? tiled.log(tmname + " file created successfully.") : tiled.log(tmname + " - FAILED to create file. Error: " + outputFileResults)
 }
 
@@ -381,7 +400,7 @@ function buildTilePaletteDict(j,i){
     };
 
     tiled.log(`------- importing preset palettes ----`);
-    let palettePaths = getRecursiveFilePathsInFolder(pathToPalettes);
+    let palettePaths = getRecursiveFilePathsInFolder(config.pathToPalettes);
     for(let file of palettePaths){
         let tempPaletteDict = getPaletteFileData(j[i]['object']['palettes'],file);
         for ( let mapLayerType of mapLayerTypes ){
@@ -420,6 +439,18 @@ function buildTilePaletteDict(j,i){
                     // tiled.log("pruned to")
                     // tiled.log(mapPalette[mapLayerTypes[set]][item])
                 }
+                if (typeof mapPalette[mapLayerType][item] === "object"){
+                    if ("fallback" in mapPalette[mapLayerType][item]){
+                        mapPalette[mapLayerType][item] = mapPalette[mapLayerType][item]["fallback"]
+                    }
+                }
+
+
+                /* else if(typeof mapPalette[mapLayerType][item] != "string"){
+                    if(Object.keys(mapPalette[mapLayerType][item]).length > 0){
+                        mapPalette[mapLayerType][item] = mapPalette[mapLayerType][item]["fallback"]
+                    }
+                }*/
             }
         }
     }
@@ -428,13 +459,13 @@ function buildTilePaletteDict(j,i){
 }
 function importMap(){
 
-    let pathToMap = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA .json map: ", FileInfo.toNativeSeparators("E:/df/cdda/dda/current/data/json/mapgen/house/house_detatched1.json"),"Select File").replace(/^"|"$/g, ''))
+    let pathToMap = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA .json map: ", FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json", "Path to Map"),"Select File").replace(/^"|"$/g, ''))
     
     if (pathToMap == ""){
         tiled.log(`import canceled`)
         return;
     }
-    //File.makePath(pathToProject+'\\importedtsx')
+    //File.makePath(config.pathtoProject+'\\importedtsx')
 
     //read map file
     let f = new TextFile(pathToMap, TextFile.ReadOnly);
@@ -475,12 +506,12 @@ function importMap(){
     let tileDict = {}
     let tilesetsToLoad = []
 
-    let tsxs = getFilesInPath(pathToTSX)
+    let tsxs = getFilesInPath(config.pathToTSX)
     for(let filename of tsxs){
         if (!filename.match(/\.tsx$/)){
             continue
         }
-        let file = FileInfo.toNativeSeparators(pathToTSX+filename)
+        let file = FileInfo.toNativeSeparators(config.pathToTSX+ "/" +filename)
         let ts = tiled.open(file)
         tiled.log(`file ${file}`)
         for (let tile of ts.tiles){
@@ -590,24 +621,21 @@ function importMap(){
 
         //setTile(x: number, y: number, tile: null | Tile, flags?: number): void
         tle.apply()
+        if (layername == 'fill_ter'){tl.locked = true;}
         return tl;
     }
-        tm.addLayer(prepareTiledLayer('fill_ter'))
+    tm.addLayer(prepareTiledLayer('fill_ter'))
     for (let mapLayerType of mapLayerTypes){
         tm.addLayer(prepareTiledLayer(mapLayerType))
     }
-    File.makePath(pathToProject+'\\tmx')
-    let pathToTMX = "tmx\\" + importMapName
-    let outputFileResults = writeToFile(pathToTMX,"tmx",tm);
+    let pathToTMX = config.pathToTMX +"/"+ importMapName+".tmx"
+    
+    let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
+    // let outputFileResults = writeToFile(pathToTMX,tm);
     (outputFileResults == null) ? tiled.log(importMapName + " file created successfully.") : tiled.log(importMapName + " - FAILED to create file. Error: " + outputFileResults)
 }
 
 class CDDAMapEntryImport {
-    // noinspection DuplicatedCode
-    /**
-     * Constructs a new instance of the tileset exporter
-     * @ param {string} fileName path of the file the tileset should be exported to
-     */
     constructor(entry) {
         this.name = entry['om_terrain'];
         this.width = entry['object']['rows'][0].length;
@@ -629,12 +657,6 @@ class CDDAMapEntryImport {
     };
 };
 class CDDAMapEntry {
-
-    // noinspection DuplicatedCode
-    /**
-     * Constructs a new instance of the tileset exporter
-     * @ param {string} fileName path of the file the tileset should be exported to
-     */
     constructor(fileName = "My_CDDA_Map",cddalayer = "") {
         this.type = "mapgen";
         this.method = "json";
@@ -652,6 +674,20 @@ class CDDAMapEntry {
             "place_monsters": [],
             "place_vehicles": []
         };
+    };
+};
+class extensionConfig {
+    constructor(pathToProject,pathToCDDA = "~/cdda") {
+        this.filename = "tiled_cdda_extension.json";
+        this.pathToProject = pathToProject;
+        this.pathToTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx");
+        this.pathToTMX = FileInfo.toNativeSeparators(pathToProject + "/tmx");
+        this.pathToCDDA = pathToCDDA;
+        this.pathToTilesets = FileInfo.toNativeSeparators(pathToCDDA + "/gfx");
+        this.pathToPalettes = FileInfo.toNativeSeparators(pathToCDDA + "/data/json/mapgen_palettes");
+        this.chosenTileset = "ChibiUltica";
+        this.pathToChosenTileset = FileInfo.toNativeSeparators(this.pathToTilesets + "/" + this.chosenTileset);
+        this.pathToJSON = FileInfo.toNativeSeparators(this.pathToChosenTileset + "/tile_config.json");
     };
 };
 
@@ -719,36 +755,80 @@ var CDDAMapFormat = {
         file.commit();
     }
 }
+function findTileInTilesets(cdda_id_tofind){
+    tiled.log(tiled.actions)
+    var ts;
+    let tsxs = getFilesInPath(config.pathToTSX)
 
+    for(let filename of tsxs){
+        if (!filename.match(/\.tsx$/)){
+            continue
+        }
+        let filepath = FileInfo.toNativeSeparators(config.pathToTSX+ "/" +filename)
+        tiled.log(`${filepath}`)
+        const file = new TextFile(filepath, TextFile.ReadOnly)
+        const file_data = file.readAll()
+        file.close()
+        var xmlentries = file_data.match(/<tile id=\"(\d+)\">\n.*\n.*?value=\"(.+)\"\/>/g)
+        for (let xmlentry of xmlentries){
+            let xml_entry_data = xmlentry.match(/<tile id=\"(\d+)\">\n.*\n.*name=\"(.+)\".*?value=\"(.+)\"\/>/)
+            if(verbose){tiled.log(`entry id: ${xml_entry_data[1]} property name: ${xml_entry_data[2]} cdda id (property value): ${xml_entry_data[3]}`);}
+            if(xml_entry_data[3] == cdda_id_tofind){
+                tiled.log(`'${cdda_id_tofind}' found in '${filename}'`)
+                // ts = tiled.open(filepath)
+                // let tile = ts.findTile(xml_entry_data[1])
+                // tile.activeAsset
+                // tiled.mapEditor.tilesetsView.currentTileset(ts)
+                tiled.log(tiled.mapEditor.currentMapView.activeAsset)
+                tiled.log(tiled.mapEditor.tilesetsView.activeAsset)
+                // tiled.mapEditor.currentBrush(tile)
+                return;
+            }
+        }
+    }
+}
+
+// tiled.log(tiled.actions)
+// tiled.trigger(tiled.actions)
 
 //import CDDA Tileset
 const action_importTileset = tiled.registerAction("CustomAction_importTileset", function(action_importTileset) {
     tiled.log(`${action_importTileset.text} was run.`)
-    importTilesets(PathToJSON)
+    initialize()
+    importTilesets(config.pathToJSON)
 });
 //Create New Map
 const action_createNewMap = tiled.registerAction("CustomAction_createNewMap", function(action_createNewMap) {
     tiled.log(`${action_createNewMap.text} was run.`)
+    initialize()
     makeEmptyMap()
 });
 //Import CDDA Map
 const action_importMap = tiled.registerAction("CustomAction_importMap", function(action_importMap) {
     tiled.log(`${action_importMap.text} was run.`)
-    //initialize()
+    initialize()
     importMap()
 });
 //Export CDDA Map
-const action_exportMap = tiled.registerAction("CustomAction_exportMap", function(action_exportMap) {
+const action_exportMap = tiled.registerAction("CustomAction_CDDA_map_exportMap", function(action_exportMap) {
     tiled.log(`${action_exportMap.text} was run.`)
-    //initialize()
+    initialize()
     prepareExportMap()
+});
+//Find tile in tileset by CDDA ID
+const action_findTileInTilemap = tiled.registerAction("CustomAction_CDDA_map_findTileInTileset", function(action_findTileInTilemap) {
+    tiled.log(`${action_findTileInTilemap.text} was run.`)
+    initialize()
+    let cdda_id_tofind = tiled.prompt(`Find tile with corresponding CDDA ID:`,"t_floor","Find Tile by CDDA ID").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, '')
+    findTileInTilesets(cdda_id_tofind)
 });
 
 action_importTileset.text = "Import CDDA tileset"
 action_createNewMap.text = "Create new CDDA map"
 action_importMap.text = "Import CDDA map"
 action_exportMap.text = "Export to CDDA map"
-action_exportMap.shortcut = "CTRL+D"
+action_findTileInTilemap.text = "Find CDDA Tile"
+action_findTileInTilemap.shortcut = "CTRL+D"
 
 //tiled.log(tiled.menus)
 tiled.extendMenu("File", [
@@ -761,6 +841,11 @@ tiled.extendMenu("File", [
 tiled.registerMapFormat("CDDAmap", CDDAMapFormat)
 tiled.extendMenu("Map", [
     { separator: true },
-    { action: "CustomAction_exportMap", before: "AutoMap" },
+    { action: "CustomAction_CDDA_map_exportMap", before: "AutoMap" },
+    { separator: true }
+]);
+tiled.extendMenu("Tileset", [
+    { separator: true },
+    { action: "CustomAction_CDDA_map_findTileInTileset", after: "Terrain Sets" },
     { separator: true }
 ]);
