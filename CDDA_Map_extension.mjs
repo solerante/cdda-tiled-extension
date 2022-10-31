@@ -1,5 +1,4 @@
 /// <reference types="@mapeditor/tiled-api" />
-//UltimateCataclysm
 //ChibiUltica
 //0x400 | 0x2000 | 0x4000 qdir filter for dir no dot and dotdot
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
@@ -40,17 +39,6 @@ function initialize(){
 }
 
 
-    /*TODO
-    ask about folders
-    get all filenames to expect
-    check if files already made
-    fill in missing files
-    ask if overwrite/update eixisting
-
-    let q = new Qt.QWidget()
-    let loc = new Qt.FileEdit()
-    tiled.log(loc)
-    */
 //tiled.tilesetFormat("tsx").write(ts,pathToTSXFile)
 function writeToFile(filepath,data) {
     var format = filepath.match(/\.(.+)$/)
