@@ -37,17 +37,6 @@ function initialize(){
         if( !File.exists(config.pathToTSX)){File.makePath(config.pathToTSX);}
         if( !File.exists(config.pathToTMX)){File.makePath(config.pathToTMX);}
     }
-    // this.filename = "tiled_cdda_extension.config";
-    // this.pathToProject = FileInfo.toNativeSeparators("~/cdda_tiled_project");
-    // this.pathToTSX = FileInfo.toNativeSeparators(pathToProject + "tsx/")
-    // this.pathToTMX = FileInfo.toNativeSeparators(pathToProject + "tmx/")
-    // this.pathToCDDA = FileInfo.toNativeSeparators("~/cdda");
-    // this.pathToTilesets = FileInfo.toNativeSeparators(PathToCDDA + "gfx/")
-    // this.pathToPalettes = FileInfo.toNativeSeparators(PathToCDDA + "data/json/mapgen_palettes/")
-    // this.chosenTileset = "ChibiUltica"
-    // this.pathToTileSet = FileInfo.toNativeSeparators(PathToCDDA + "gfx/")
-    // this.pathToChosenTileset = FileInfo.toNativeSeparators(PathToCDDA + "gfx/" + chosenTileset)
-    // this.pathToJSON = FileInfo.toNativeSeparators(PathToChosenTileSet + "tile_config.json")
 }
 
 
