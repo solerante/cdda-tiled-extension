@@ -489,46 +489,53 @@ function importMap(){
     let tm = prepareTilemap(importMap.name,importMap.width)
 
     //get tile numbers, cdda IDs, and tilset file 
-    let tileDict = {}
-    let tilesetsToLoad = []
+    let tileDict = {};
+    let tilesetsToLoad = [];
+    let tilesetObjects = {};
 
-    let tsxs = getFilesInPath(config.pathToTSX)
+    let tsxs = getFilesInPath(config.pathToTSX);
     for(let filename of tsxs){
         if (!filename.match(/\.tsx$/)){
-            continue
+            continue;
         }
         let filepath = FileInfo.toNativeSeparators(config.pathToTSX+ "/" +filename)
         tiled.log(`file ${filepath}`)
 
-        let tsxTiles = TSXread(filepath) // { tiles: { id: { properties: { property: value }}}}
-        
-
-
-
+        let tsxTiles = TSXread(filepath) // { filepath, tiles: { id: { class, probabiltiy, properties: { property: value }}}}
+        let tilesetname = FileInfo.baseName(filepath)
 
 
         for ( let tsxTileID in tsxTiles.tiles ){
             if (!tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]){continue;}
             // fill terrain
             if (tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"] == importMap.object.fill_ter){
-                if (verbose){tiled.log(`-${cdda_ID} found in palette with fill tile ${importMap.object.fill_ter} with local Tile ID ${tile_ID}`)}
-                tileDict["fill_ter"] = [tile_ID, filepath];
+                if (verbose){tiled.log(`-${tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]} found in palette with fill tile ${importMap.object.fill_ter} with local Tile ID ${tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]}`)}
+                // tileDict["fill_ter"] = [tile_ID, filepath];
+                if (verbose){tiled.log(`Adding tileset ${filepath} to map.`);}
+                    if ( !tilesetObjects.hasOwnProperty(tilesetname) ){
+                        tilesetObjects[tilesetname] = tiled.open(filepath)
+                    }
+                    tileDict["fill_ter"] = [tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"],tilesetObjects[tilesetname].findTile(tsxTileID), filepath]
                 if(!tilesetsToLoad.includes(filepath)){
-                    if (verbose){tiled.log(`Adding tileset ${filepath} to map.`);}
                     tilesetsToLoad.push(filepath);
                 };
                 continue;
             };
+            // other terrain and furniture
             for ( let entry in tsxTiles.tiles[tsxTileID].properties ){
                 let cdda_ID = tsxTiles.tiles[tsxTileID].properties[entry];
                 let tile_ID = tsxTileID;
                 for (let mapLayerType of mapLayerTypes){
-
                     if (Object.values(mapPalette[mapLayerType]).includes(cdda_ID)){
-                        if (verbose){tiled.log(`-'${cdda_ID}'' found in tileset file with local Tile ID '${tile_ID}'`)}
-                        tileDict[cdda_ID] = [tile_ID, filepath]
+                        if (verbose){tiled.log(`-'${cdda_ID}'' found in tileset file with local Tile ID '${tile_ID}'`);}
+                        
+                        if ( !tilesetObjects.hasOwnProperty(tilesetname) ){
+                            tilesetObjects[tilesetname] = tiled.open(filepath)
+                        }
+
+                        tileDict[cdda_ID] = [tile_ID,tilesetObjects[tilesetname].findTile(tsxTileID), filepath]
                         if(!tilesetsToLoad.includes(filepath)){
-                            if (verbose){tiled.log(`Adding tileset ${filepath} to map.`)}
+                            if (verbose){tiled.log(`Adding tileset ${filepath} to map.`);}
                             tilesetsToLoad.push(filepath)
                         }
                     }
@@ -557,7 +564,7 @@ function importMap(){
                     newcell = tileDict[mapPalette[mapLayerName][thiscell]][1]
                 }
                 if (newcell != 0) {
-                    tiled.log(`newcell is of type '${typeof newcell}'`) 
+                    tiled.log(`newcell is of type '${typeof newcell}'`);
                     tiled.log(`${mapLayerName} - cell ( ${cell}, ${row} )  '${thiscell}' > ${newcell.property("CDDA_ID")}`)
                 } else {
                     tiled.log(`${mapLayerName} - cell ( ${cell}, ${row} )  '${thiscell}' > ${newcell}`)
