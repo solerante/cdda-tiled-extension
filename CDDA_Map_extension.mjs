@@ -222,7 +222,7 @@ function importTilesets(filename){
         tiled.log(`tileset range: ${jts.range[0]} - ${jts.range[1]}`);
         tiled.log(`tileset dimensions: ${jts.width}, ${jts.height}`);
         tiled.log(`tileset offset: ${jts.xOffset}, ${jts.yOffset}`);
-        if (jts.height > 32){
+        if (jts.height >= 64){
             jts.offset = Qt.point(jts.xOffset,(32 + jts.yOffset));
         } else {
             jts.offset = Qt.point(jts.xOffset, jts.yOffset);
@@ -322,6 +322,7 @@ function buildTilePaletteDict(j,i){
     tiled.log(`------- Palette Loading Area ---------`);
 
     function getPaletteFileData(mapFilePalettes,filepath){
+        if(verbose){tiled.log(`getting data from ${filepath}`);}
         const file = new TextFile(filepath, TextFile.ReadOnly)
         const file_data = file.readAll()
         file.close()
@@ -333,7 +334,7 @@ function buildTilePaletteDict(j,i){
             // tiled.log(`palette id '${p['id']}'`)
             if (p['type'] != "palette"){continue;};
             if (mapFilePalettes.includes(p['id'])){
-                tiled.log(`id '${p['id']}' found in ${FileInfo.fileName(filepath)}. Importing...`)
+                if (verbose){tiled.log(`id '${p['id']}' found in ${FileInfo.fileName(filepath)}. Importing...`);}
                 // mapPalette['terrain'] = Object.assign(mapPalette['terrain'], p['terrain']);
                 for (let mapLayerType of mapLayerTypes){
                     thisPalette[mapLayerType] = {}
@@ -350,7 +351,7 @@ function buildTilePaletteDict(j,i){
                         // } else if (typeof p[mapLayerTypes[mapLayerType]][key][0][0][0] == "string"){
                         //     thisPalette[key] = p[mapLayerTypes[mapLayerType]][key][0][0][0]
                         // }*/
-                        tiled.log(`${key} > ${p[mapLayerType][key]}\t\tadded to palette'${mapLayerType}'.`)
+                        tiled.log(`\t${key} > ${thisPalette[mapLayerType][key]}\tadded to palette'${mapLayerType}'.`)
                     }
                 }
             }
@@ -358,9 +359,11 @@ function buildTilePaletteDict(j,i){
         return thisPalette;
     }
     function getMapfileCustomPalette(j){
+        if(verbose){tiled.log(`getting data from map file`);}
         let thisPalette = {}
         for (let mapLayerType of mapLayerTypes){
-        thisPalette[mapLayerType] = {}
+            tiled.log(`map layer '${mapLayerType}'`)
+            thisPalette[mapLayerType] = {}
             for (let key in j[i]['object'][mapLayerType]){
                 thisPalette[mapLayerType][key] = j[i]['object'][mapLayerType][key]
                 // if(mapPalette[mapLayerType][key] == "interior_wall_type"){
@@ -372,6 +375,7 @@ function buildTilePaletteDict(j,i){
                 //     thisPalette[key] = j[i]['object'][mapLayerType][key][0]
                 // }
                 // // tiled.log(`${key} > ${j[i]['object'][mapLayerType][key]}`)
+                tiled.log(`\t${key} > ${thisPalette[mapLayerType][key]}\tadded to palette'${mapLayerType}'.`)
             }
         }
         return thisPalette;
@@ -384,30 +388,32 @@ function buildTilePaletteDict(j,i){
         mapPalette[mapLayerType] = {};
     };
 
-    tiled.log(`------- importing preset palettes ----`);
+    tiled.log(`------- importing preset palette symbols ----`);
     let palettePaths = getRecursiveFilePathsInFolder(config.pathToPalettes);
-    for(let file of palettePaths){
-        let tempPaletteDict = getPaletteFileData(j[i]['object']['palettes'],file);
+    for(let filepath of palettePaths){
+        let tempPaletteDict = getPaletteFileData(j[i]['object']['palettes'],filepath);
         for ( let mapLayerType of mapLayerTypes ){
             for ( let key in tempPaletteDict[mapLayerType]){
                 mapPalette[mapLayerType][key] = tempPaletteDict[mapLayerType][key]
+                if(verbose){tiled.log(`true assign '${key}' >> '${mapPalette[mapLayerType][key]}'`)}
             }
         }
     }
 
-    tiled.log(`------- importing mapfile custom palette ---------`)
+    tiled.log(`------- importing mapfile symbols ---------`)
     tempPaletteDict = getMapfileCustomPalette(j);
     for (let mapLayerType of mapLayerTypes){
-        for ( let key in tempPaletteDict){
+        for ( let key in tempPaletteDict[mapLayerType]){
             mapPalette[mapLayerType][key] = tempPaletteDict[mapLayerType][key]
+            if(verbose){tiled.log(`true assign '${key}' >> ${mapPalette[mapLayerType][key]}`)}
         }
     }
 
-    tiled.log(`------- mapfile custom palette import results---------`)
+    tiled.log(`------- mapfile total custom palette import results---------`)
     for (let mapLayerType of mapLayerTypes){
         tiled.log(`mapLayerType: ${mapLayerType}`)
         for ( let n in mapPalette[mapLayerType] ){
-            tiled.log(`${n} > ${mapPalette[mapLayerType][n]}\t\tadded to palette'${mapLayerType}'.`)
+            tiled.log(`${n} > ${mapPalette[mapLayerType][n]}\t\tin palette'${mapLayerType}'.`)
         }
     }
     // clean up arrays
@@ -545,7 +551,6 @@ function importMap(){
     }
 
     // prepare map for tiled
-    // terrain fill
     function prepareMapArrayForTiled(mapLayerName){
         let tMapArray = []
         for (let row in mapArray){
@@ -555,40 +560,27 @@ function importMap(){
                 let newcell = 0
                 // terrain fill
                 if (mapLayerName == 'fill_ter'){
-                    newcell = [tileDict["fill_ter"][1]];
-                    tRow.push(newcell);
+                    tMapArray.push([cell,row,tileDict["fill_ter"][1]])
                     continue;
                 }
                 // hasownproperty is includes for keys
                 if (mapPalette[mapLayerName].hasOwnProperty(thiscell) && tileDict[mapPalette[mapLayerName][thiscell]]) {
                     newcell = tileDict[mapPalette[mapLayerName][thiscell]][1]
+                    tMapArray.push([cell,row,newcell])
+                    if(verbose >= 2){tiled.log(`( ${cell}, ${row} ) '${thiscell}' > '${mapPalette[mapLayerName][thiscell]}' - '${newcell}'`)}
                 }
-                if (newcell != 0) {
-                    tiled.log(`newcell is of type '${typeof newcell}'`);
-                    tiled.log(`${mapLayerName} - cell ( ${cell}, ${row} )  '${thiscell}' > ${newcell.property("CDDA_ID")}`)
-                } else {
-                    tiled.log(`${mapLayerName} - cell ( ${cell}, ${row} )  '${thiscell}' > ${newcell}`)
-                }
-                //tiled.log(`becomes: ${newcell}`)
-                tRow.push(newcell)
             }
-            tMapArray.push(tRow)
         }
         return tMapArray;
     }
 
     let mapArrays = {}
     mapArrays['fill_ter'] = prepareMapArrayForTiled('fill_ter')
+
     for (let mapLayerType of mapLayerTypes){
         tiled.log(`preparing map array for layer '${mapLayerType}'`)
         mapArrays[mapLayerType] = prepareMapArrayForTiled(mapLayerType)
     }
-    //show map layers in console
-    /*
-    for (let row in mapArrays['terrain']){
-        tiled.log(mapArrays['terrain'][row])
-    }
-    */
 
     // Prepare tiled layer
     function prepareTiledLayer(layername){
@@ -602,20 +594,25 @@ function importMap(){
         let tle = tl.edit()
 
         tiled.log(`editing layer ${tle.target.name}`)
+        for (let entry in mapArrays[layername]){
+            if(verbose){tiled.log(`${entry} - ( ${mapArrays[layername][entry][0]}, ${mapArrays[layername][entry][1]} ) - ${mapArrays[layername][entry][2]}`)}
+            tle.setTile(mapArrays[layername][entry][0],mapArrays[layername][entry][1],mapArrays[layername][entry][2])
 
-        for (let row in mapArrays[layername]){
-            let y = row
-            for (let cell in mapArrays[layername][row]){
-                let x = cell
-                if (layername == 'fill_ter'){
-                    tle.setTile(x,y,mapArrays[layername][row][cell])
-                }
-                tle.setTile(x,y,mapArrays[layername][row][cell])
-                // if (mapArrays[layername][row][cell] != 0){
-                //     tiled.log(`tile set at (${x}, ${y}) for ${mapArrays[mapLayerTypes[set]][row][cell]}`)
-                // }
-            }
         }
+
+        // for (let row in mapArrays[layername]){
+        //     let y = row
+        //     for (let cell in mapArrays[layername][row]){
+        //         let x = cell
+        //         if (layername == 'fill_ter'){
+        //             tle.setTile(x,y,mapArrays[layername][row][cell])
+        //         }
+        //         tle.setTile(x,y,mapArrays[layername][row][cell])
+        //         // if (mapArrays[layername][row][cell] != 0){
+        //         //     tiled.log(`tile set at (${x}, ${y}) for ${mapArrays[mapLayerTypes[set]][row][cell]}`)
+        //         // }
+        //     }
+        // }
 
         //setTile(x: number, y: number, tile: null | Tile, flags?: number): void
         tle.apply()
@@ -631,6 +628,7 @@ function importMap(){
     let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
     // let outputFileResults = writeToFile(pathToTMX,tm);
     (outputFileResults == null) ? tiled.log(importMapName + " file created successfully.") : tiled.log(importMapName + " - FAILED to create file. Error: " + outputFileResults)
+    tiled.open(pathToTMX)
 }
 
 class CDDAMapEntryImport {
@@ -778,7 +776,7 @@ function TSXread(filepath){ // { tiles: { id: { properties: { property: value }}
             for (let property of xmlentry.match(/<property.*?>/g)){
                 let propertyKeyValue = property.match(/<property.*?name.*?\"(.*?)\".*?value.*?\"(.*?)\"/)
                 xmlDictionary["tiles"][tileid]["properties"][propertyKeyValue[1]] = propertyKeyValue[2]
-                if(verbose){tiled.log(`entry id: ${tileid} property name: ${propertyKeyValue[1]} cdda id (property value): ${propertyKeyValue[2]}`);}
+                if(verbose > 1){tiled.log(`entry id: ${tileid} property name: ${propertyKeyValue[1]} cdda id (property value): ${propertyKeyValue[2]}`);}
             }
         }
     }
@@ -803,7 +801,7 @@ function findTileInTilesets(){
                 for ( let property in tsxData.tiles[tileid].properties ){
                     if( verbose ){tiled.log(`checking '${property}' in id '${tileid}'`);}
                     if(tsxData.tiles[tileid].properties[property] == cdda_id_tofind){
-                        tiled.log(`'${cdda_id_tofind}' found in '${filename}'`)
+                        tiled.log(`'${cdda_id_tofind}' found! '${tileid}' in '${filename}'`)
                         tiled.open(filepath)
                         return;
                     }
@@ -811,6 +809,7 @@ function findTileInTilesets(){
             }
         }
     }
+    tiled.log(`'${cdda_id_tofind}' not found!`)
 }
 
 // tiled.log(tiled.actions)
