@@ -6,7 +6,7 @@
 var verbose = true
 
 const mapLayerTypes = ['terrain','furniture']
-const entityLayerTypes = ["items", "place_item", "place_items", "place_monsters", "place_vehicles"]
+const entityLayerTypes = ["items", "place_item", "place_items", "place_loot", "place_monsters", "place_vehicles"]
 
 var skipOverlays = true;
 var overwriteExisting = false;
@@ -179,16 +179,27 @@ function importTilesets(filename){
                 tiled.log(`cdda id: ${cdda_IDs[t]} >>> Local tile ID: ${LocalID}`);
                 let currentTile = ts.findTile(LocalID)
                 //set custom properties
+                let propertyIndex = 0;
+                if (currentTile.properties().hasOwnProperty("CDDA_ID_0")){
+                    let tempPropertiesArray = []
+                    for (let property in currentTile.properties()){
+                        if(property.match(/CDDA_ID_(.*)/)){
+                        if(verbose >= 2){tiled.log(`found property indeces ${tempPropertiesArray}`);};
+                            tempPropertiesArray.push(parseInt(property.match(/CDDA_ID_(.*)/)[1]))
+                        }
+                    }
+                    propertyIndex = 1 + Math.max(...tempPropertiesArray)
+                    if(verbose >= 2){tiled.log(`Local tile ID: '${LocalID}' already has assigned properties. will assign at CDDA_ID_${propertyIndex}`);};
+                }
                 if ( Array.isArray(tile["id"]) ){
                     for ( let n in tile["id"]){
-                        currentTile.setProperty('CDDA_ID_'+n.toString(), tile['id'][n])
+                        let index = parseInt(n,10)+parseInt(propertyIndex, 10)
+                        currentTile.setProperty('CDDA_ID_'+index.toString(), tile['id'][n])
                     }
                 } else {
-                    currentTile.setProperty('CDDA_ID_0', tile['id'])
+                    currentTile.setProperty('CDDA_ID_'+propertyIndex.toString(), tile['id'])
                 }
             }
-
-
         }
         return ts
     }
