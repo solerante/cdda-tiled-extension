@@ -25,15 +25,15 @@ What works
 What kind of works
 
 - saving config
-  - - it doesn't remember project location... edit the extension and make your project path the autofill default for the path to project prompt for convenience
+  - it doesn't remember project location... edit the extension and make your project path the autofill default for the path to project prompt for convenience
 - import CDDA Tilesets
 - import CDDA map
-  - - maps missing regional and other relative definitions
-  - - items and entities are imported when not using relative definitions
-  - - relative definitions such as inner and outer walls and fences from palettes are not calculated, fallback is used
+  - maps missing regional and other relative definitions
+  - items and entities are imported when not using relative definitions
+  - relative definitions such as inner and outer walls and fences from palettes are not calculated, fallback is used
 
 What doesnt work
 
 - export CDDA map
-  - - kind of looks like the correct format
-  - - doesn't actually calculate symbols for map, chooses character from ID. It would need to compare chosen tiles in map to palettes and find a suitable palette, assign it, compare placement of other layers, and export that
+  - kind of looks like the correct format
+  - doesn't actually calculate symbols for map, chooses character from ID. It would need to compare chosen tiles in map to palettes and find a suitable palette, assign it, compare placement of other layers, and export that
