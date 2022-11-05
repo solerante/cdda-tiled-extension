@@ -447,9 +447,9 @@ function importMap(){
     }
     var importMapName = j[i]['om_terrain'];
     var importMapSize = j[i]['object']['rows'][0].length;
-    var has_fill_ter = j[i]['object'].hasOwnProperty("fill_ter")
-    if (has_fill_ter){ var importMapFill = j[i]['object']['fill_ter'];}
     tiled.log(`${j[i]['om_terrain']}`)
+    var has_fill_ter = j[i]['object'].hasOwnProperty("fill_ter")
+    if (has_fill_ter){ var importMapFill = j[i]['object']['fill_ter'];tiled.log(`${j[i]['object']['fill_ter']}`);}
     // tiled.log(`${j[i]['object']['fill_ter']}`)
 
     let mapArray = importMap['object']['rows']
@@ -712,18 +712,38 @@ class CDDAMapEntryImport {
         this.height = entry['object']['rows'].length;
         this.fill_ter = entry['object']['fill_ter'];
         this.weight = entry['weigth'];
-        this.object = {
+        this.object = { // place_ uses x,y otherwise uses tile symbol
+            "flags": entry['object']['flags'],
             "fill_ter": entry['object']['fill_ter'],
             "palettes": entry['object']['palettes'],
+            "predecessor_mapgen": entry['object']['predecessor_mapgen'],
             "rows": entry['object']['rows'],
             "terrain":entry['object']["terrain"],
             "furniture": entry['object']["furniture"],
-            "items": entry['object']["items"],
             "place_loot": entry['object']["place_loot"],
             "place_item": entry['object']["place_item"],
+            "items": entry['object']["items"],
+            "sealed_item": entry['object']["sealed_item"],
             "place_items": entry['object']["place_items"],
             "place_monsters": entry['object']["place_monsters"],
-            "place_vehicles": entry['object']["place_vehicles"]
+            "place_vehicles": entry['object']["place_vehicles"],
+            "place_rubble": entry['object']["place_rubble"],
+            "traps": entry['object']["traps"],
+            "place_liquids": entry['object']["place_liquids"],
+            "graffiti": entry['object']["graffiti"],
+            "zones": entry['object']["zones"],
+            "place_nested": entry['object']["place_nested"],
+            "distribution": entry['object']["distribution"],
+            "place_corpses": entry['object']["place_corpses"],
+            "computers": entry['object']["computers"],
+            "place_computers": entry['object']["place_computers"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "toilets": entry['object']['toilets']
         };
     };
 };
