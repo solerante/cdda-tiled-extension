@@ -11,7 +11,7 @@ File > Import CDDA Tileset
 Import tilesets installed in CDDA folder by name. Takes a bit of time.
 
 File > Import CDDA Map
-Import a CDDA map by it's path, based on imported tileset. Takes a bit of time.
+Import a CDDA map by its path, based on imported tileset. Must have imported tileset. Takes a bit of time.
 
 (with Tiled map open) File > Export As... > CDDA map format
 "Export" the current map "for CDDA" (that's a stretch).
