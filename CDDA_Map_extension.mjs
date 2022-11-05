@@ -4,6 +4,7 @@
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
 var verbose = true
+const pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
 
 const mapLayerTypes = ['terrain','furniture']
 const entityLayerTypes = ["items", "place_item", "place_items", "place_loot", "place_monsters", "place_vehicles"]
@@ -16,15 +17,15 @@ var config = {}
 function initialize(){
     // if ( Object.keys(config).length != 0 ) { return; }
     // var activeAsset = tiled.activeAsset;
-    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Absolute path to Tile project:","/home/user/cdda_tiled_project","Tiled Project Path").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, ''))
+    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Absolute path to Tile project:","/home/user/cdda_tiled_project","Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
     var pathToConfig = FileInfo.toNativeSeparators(pathToProject+"/tiled_cdda_extension.json")
     if(!File.exists(pathToProject)){File.makePath(pathToProject);}
 
     if(!File.exists(pathToConfig)){
         tiled.log(`no config file found at ${pathToConfig}. Making new config file.`) 
-        let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Absolute path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, ''))
+        let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Absolute path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
         config = new extensionConfig(pathToProject,givenPathToCDDA);
-        config.chosenTileset = tiled.prompt("Choose a tileset by name:","ChibiUltica","Tileset Name").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, '')
+        config.chosenTileset = tiled.prompt("Choose a tileset by name:","ChibiUltica","Tileset Name").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder)
         if( !File.exists(config.pathToTSX)){File.makePath(config.pathToTSX);}
         if( !File.exists(config.pathToTMX)){File.makePath(config.pathToTMX);}
 
@@ -425,7 +426,7 @@ function buildTilePaletteDict(j,i){
 }
 function importMap(){
 
-    let pathToMap = tiled.prompt("Path to CDDA .json map: ", FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json", "Path to Map"),"Select File").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, '')
+    let pathToMap = tiled.prompt("Path to CDDA .json map: ", FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json", "Path to Map"),"Select File").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder)
     
     if (pathToMap == false){
         tiled.log(`import canceled`)
@@ -907,7 +908,7 @@ function TSXread(filepath){ // { tiles: { id: { properties: { property: value }}
 }
 
 function findTileInTilesets(){
-    let cdda_id_tofind = tiled.prompt(`Find tile with corresponding CDDA ID:`,"t_floor","Find Tile by CDDA ID").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, '')
+    let cdda_id_tofind = tiled.prompt(`Find tile with corresponding CDDA ID:`,"t_floor","Find Tile by CDDA ID").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"")
     tiled.log(`Searching for '${cdda_id_tofind}'...`)
     var ts;
     let tsxs = getFilesInPath(config.pathToTSX)
