@@ -1,6 +1,6 @@
 # Tiled extension for Cataclysm: Dark Days Ahead
 
-Add the extension to your Tiled extensions folder.
+Add the extension to your [Tiled](https://www.mapeditor.org/) extensions folder.
 <https://doc.mapeditor.org/en/stable/reference/scripting/#script-extensions>
 
 =======
