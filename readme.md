@@ -7,6 +7,8 @@ Add the extension to your [Tiled](https://www.mapeditor.org/) extensions folder.
 
 ![tiled_screenshot](https://user-images.githubusercontent.com/30750303/199577624-fcc35ebf-7ec3-4617-9c5e-3c670f156607.png)
 
+For now, please use Absolute Paths when prompted. That is "/home/solerante/myTiledProject" instead of "~/myTiledProject".
+
 File > Import CDDA Tileset
 Import tilesets installed in CDDA folder by name. Takes a bit of time.
 

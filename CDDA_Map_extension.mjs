@@ -16,19 +16,19 @@ var config = {}
 function initialize(){
     // if ( Object.keys(config).length != 0 ) { return; }
     // var activeAsset = tiled.activeAsset;
-    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:","~/cdda_tiled_project","Tiled Project Path").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, ''))
+    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Absolute path to Tile project:","/home/user/cdda_tiled_project","Tiled Project Path").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, ''))
     var pathToConfig = FileInfo.toNativeSeparators(pathToProject+"/tiled_cdda_extension.json")
     if(!File.exists(pathToProject)){File.makePath(pathToProject);}
 
     if(!File.exists(pathToConfig)){
         tiled.log(`no config file found at ${pathToConfig}. Making new config file.`) 
-        let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, ''))
+        let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Absolute path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, ''))
         config = new extensionConfig(pathToProject,givenPathToCDDA);
         config.chosenTileset = tiled.prompt("Choose a tileset by name:","ChibiUltica","Tileset Name").replace(/^"|"$/g, '').replace(/^'|'$/g, '').replace(/\\$|\/$/g, '')
         if( !File.exists(config.pathToTSX)){File.makePath(config.pathToTSX);}
         if( !File.exists(config.pathToTMX)){File.makePath(config.pathToTMX);}
 
-        var file = new TextFile(pathToConfig, TextFile.WriteOnly);
+        var file = new TextFile(FileInfo.cleanPath(pathToConfig), TextFile.WriteOnly); 
         file.write(JSON.stringify(config,null,2));
         file.commit();
     } else {
@@ -717,6 +717,7 @@ class CDDAMapEntryImport {
             "fill_ter": entry['object']['fill_ter'],
             "palettes": entry['object']['palettes'],
             "predecessor_mapgen": entry['object']['predecessor_mapgen'],
+            "distribution": entry['object']["distribution"],
             "rows": entry['object']['rows'],
             "terrain":entry['object']["terrain"],
             "furniture": entry['object']["furniture"],
@@ -733,7 +734,6 @@ class CDDAMapEntryImport {
             "graffiti": entry['object']["graffiti"],
             "zones": entry['object']["zones"],
             "place_nested": entry['object']["place_nested"],
-            "distribution": entry['object']["distribution"],
             "place_corpses": entry['object']["place_corpses"],
             "computers": entry['object']["computers"],
             "place_computers": entry['object']["place_computers"],
