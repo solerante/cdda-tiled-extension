@@ -174,12 +174,19 @@ function importTilesets(filename){
             tiled.log(`CDDA IDs:`)
             tiled.log(cdda_IDs)
             let LocalID = 0;
+            cddaidentryloop:
             for (let t in cdda_IDs){
                 //offset 1st tile in tileset range
                 (jts.range[0] == 1) ? LocalID = cdda_IDs[t] - jts.range[0] + 1 : LocalID = cdda_IDs[t] - jts.range[0]
                 tiled.log(`cdda id: ${cdda_IDs[t]} >>> Local tile ID: ${LocalID}`);
                 let currentTile = ts.findTile(LocalID)
-                //set custom properties
+                // set custom properties
+                // set export property
+                if (!currentTile.properties().hasOwnProperty("CDDA_ID_export")){
+                    currentTile.setProperty("CDDA_ID_export", "")
+                }
+
+                // find right index to continue IDs
                 let propertyIndex = 0;
                 if (currentTile.properties().hasOwnProperty("CDDA_ID_0")){
                     let tempPropertiesArray = []
@@ -193,11 +200,18 @@ function importTilesets(filename){
                     if(verbose >= 2){tiled.log(`Local tile ID: '${LocalID}' already has assigned properties. will assign at CDDA_ID_${propertyIndex}`);};
                 }
                 if ( Array.isArray(tile["id"]) ){
+                    eachtileloop:
                     for ( let n in tile["id"]){
                         let index = parseInt(n,10)+parseInt(propertyIndex, 10)
+                        for(let p in currentTile.properties()){
+                            if(currentTile.properties()[p] == tile["id"][n]){continue eachtileloop;}
+                        }
                         currentTile.setProperty('CDDA_ID_'+index.toString(), tile['id'][n])
                     }
                 } else {
+                    for(let p in currentTile.properties()){
+                        if(currentTile.properties()[p] == tile["id"]){continue cddaidentryloop;}
+                    }
                     currentTile.setProperty('CDDA_ID_'+propertyIndex.toString(), tile['id'])
                 }
             }
