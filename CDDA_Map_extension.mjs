@@ -10,24 +10,24 @@ const mapLayerTypes = ['terrain','furniture']
 const entityLayerTypes = ["items", "place_item", "place_items", "place_loot", "place_monsters", "place_vehicles"]
 
 var skipOverlays = true;
-var overwriteExisting = false;
+var overwriteExisting = true;
+const configfilename = "tiled_cdda_extension.json"
 var config = {}
 
 
 function initialize(){
     // if ( Object.keys(config).length != 0 ) { return; }
     // var activeAsset = tiled.activeAsset;
-    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Absolute path to Tile project:","/home/user/cdda_tiled_project","Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
-    var pathToConfig = FileInfo.toNativeSeparators(pathToProject+"/tiled_cdda_extension.json")
+    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:","/home/user/cdda_tiled_project","Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+    var pathToConfig = FileInfo.toNativeSeparators(pathToProject+"/"+configfilename)
     if(!File.exists(pathToProject)){File.makePath(pathToProject);}
 
     if(!File.exists(pathToConfig)){
         tiled.log(`no config file found at ${pathToConfig}. Making new config file.`) 
-        let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Absolute path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+        let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
         config = new extensionConfig(pathToProject,givenPathToCDDA);
-        config.chosenTileset = tiled.prompt("Choose a tileset by name:","ChibiUltica","Tileset Name").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder)
-        if( !File.exists(config.pathToTSX)){File.makePath(config.pathToTSX);}
-        if( !File.exists(config.pathToTMX)){File.makePath(config.pathToTMX);}
+        if( !File.exists(config.pathToTSX) ){File.makePath(config.pathToTSX);}
+        if( !File.exists(config.pathToTMX) ){File.makePath(config.pathToTMX);}
 
         var file = new TextFile(FileInfo.cleanPath(pathToConfig), TextFile.WriteOnly); 
         file.write(JSON.stringify(config,null,2));
@@ -35,8 +35,8 @@ function initialize(){
     } else {
         tiled.log(`config file found at ${pathToConfig}`) 
         config = readJSONFile(pathToConfig)
-        if( !File.exists(config.pathToTSX)){File.makePath(config.pathToTSX);}
-        if( !File.exists(config.pathToTMX)){File.makePath(config.pathToTMX);}
+        if( !File.exists(config.pathToTSX) ){File.makePath(config.pathToTSX);}
+        if( !File.exists(config.pathToTMX) ){File.makePath(config.pathToTMX);}
     }
 }
 
@@ -78,7 +78,22 @@ function getRecursiveFilePathsInFolder(targetPath){
 function getFilesInPath(path){ return File.directoryEntries(path, 0x002 | 0x2000 | 0x4000);}
 function getFoldersInPath(path){ return File.directoryEntries(path, 0x400 | 0x2000 | 0x4000);}
     
-function importTilesets(filename){
+function importTilesets(){
+    
+    config.pathToChosenTileset = FileInfo.toNativeSeparators(tiled.prompt("Path to Tileset folder:",config.pathToChosenTileset,"Tileset Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+    config.chosenTileset = config.pathToChosenTileset.match(/(?:\/|\\|\\\\)(?:(\.?\w+$)|(?:(\.?\w+)(?:\/|\\|\\\\)\w+\.\w+))/)[1]
+    config.pathToJSON = FileInfo.toNativeSeparators(config.pathToChosenTileset + "/tile_config.json");
+    
+    config.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(config.pathToProject + "/tsx/"+config.chosenTileset)
+    if( !File.exists(config.pathToChosenTilesetTSX) ){File.makePath(config.pathToChosenTilesetTSX);}
+    
+    var configupdate = new TextFile(FileInfo.cleanPath(config.pathToProject+"/"+config.filename), TextFile.WriteOnly); 
+    configupdate.write(JSON.stringify(config,null,2));
+    configupdate.commit();
+    
+    var filename = config.pathToJSON
+
+
 
     function importSpriteData(ts,jts,j,i){
         let tiles = j['tiles-new'][i]['tiles']
@@ -181,10 +196,6 @@ function importTilesets(filename){
                 tiled.log(`cdda id: ${cdda_IDs[t]} >>> Local tile ID: ${LocalID}`);
                 let currentTile = ts.findTile(LocalID)
                 // set custom properties
-                // set export property
-                if (!currentTile.properties().hasOwnProperty("CDDA_ID_export")){
-                    currentTile.setProperty("CDDA_ID_export", "")
-                }
 
                 // find right index to continue IDs
                 let propertyIndex = 0;
@@ -214,6 +225,10 @@ function importTilesets(filename){
                     }
                     currentTile.setProperty('CDDA_ID_'+propertyIndex.toString(), tile['id'])
                 }
+                // set export property
+                if (!currentTile.properties().hasOwnProperty("CDDA_ID_export")){
+                    currentTile.setProperty("CDDA_ID_export", "")
+                }
             }
         }
         return ts
@@ -228,7 +243,7 @@ function importTilesets(filename){
         jts.name = FileInfo.baseName(imgFile)
 
         //skip existing ("just skip existing altogether bro") and 'fallback'
-        let shouldSkip = !overwriteExisting && File.exists(config.pathToTSX + "/" + jts.name + ".tsx") || skipOverlays && imgFile.match(/(fallback)/);
+        let shouldSkip = !overwriteExisting && File.exists(config.pathToChosenTilesetTSX + "/" + jts.name + ".tsx") || skipOverlays && imgFile.match(/(fallback)/);
         if (shouldSkip){
             tiled.log(`skipping ${jts.name}`)
             return [0,0];
@@ -299,7 +314,7 @@ function importTilesets(filename){
         let {ts,jts} = processTileset(j,t)
         if (ts == null){ continue; }
         ts = importSpriteData(ts,jts,j,t)
-        let pathToTSXFile = FileInfo.toNativeSeparators(config.pathToTSX + "/" + ts.name+".tsx");
+        let pathToTSXFile = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX + "/" + ts.name+".tsx");
         tiled.log(`Preparing to write ${(ts.isTileset) ? `tilesheet` : `not a tilesheet`} '${ts.name}' to '${pathToTSXFile}'`)
         // let outputFileResults = writeToFile(pathToTSXFile,ts);
         let outputFileResults = tiled.tilesetFormat("tsx").write(ts,pathToTSXFile)
@@ -501,12 +516,12 @@ function importMap(){
         }
     }
 
-    let tsxs = getFilesInPath(config.pathToTSX);
+    let tsxs = getFilesInPath(config.pathToChosenTilesetTSX);
     for(let filename of tsxs){
         if (!filename.match(/\.tsx$/)){
             continue;
         }
-        let filepath = FileInfo.toNativeSeparators(config.pathToTSX+ "/" +filename)
+        let filepath = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+ "/" +filename)
         tiled.log(`file ${filepath}`)
 
         let tsxTiles = TSXread(filepath) // { filepath, tiles: { id: { class, probabiltiy, properties: { property: value }}}}
@@ -712,6 +727,7 @@ function importMap(){
         if (entityLayerType == "items"){continue;};
         tm.addLayer(prepareTiledLayer(entityLayerType))
     }
+    tm.setProperty("import_tileset",config.chosenTileset)
     let pathToTMX = config.pathToTMX +"/"+ importMapName+".tmx"
     
     let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
@@ -719,84 +735,6 @@ function importMap(){
     (outputFileResults == null) ? tiled.log(importMapName + " file created successfully.") : tiled.log(importMapName + " - FAILED to create file. Error: " + outputFileResults)
     tiled.open(pathToTMX)
 }
-
-class CDDAMapEntryImport {
-    constructor(entry) {
-        this.name = entry['om_terrain'];
-        this.width = entry['object']['rows'][0].length;
-        this.height = entry['object']['rows'].length;
-        this.fill_ter = entry['object']['fill_ter'];
-        this.weight = entry['weigth'];
-        this.object = { // place_ uses x,y otherwise uses tile symbol
-            "flags": entry['object']['flags'],
-            "fill_ter": entry['object']['fill_ter'],
-            "palettes": entry['object']['palettes'],
-            "predecessor_mapgen": entry['object']['predecessor_mapgen'],
-            "distribution": entry['object']["distribution"],
-            "rows": entry['object']['rows'],
-            "terrain":entry['object']["terrain"],
-            "furniture": entry['object']["furniture"],
-            "place_loot": entry['object']["place_loot"],
-            "place_item": entry['object']["place_item"],
-            "items": entry['object']["items"],
-            "sealed_item": entry['object']["sealed_item"],
-            "place_items": entry['object']["place_items"],
-            "place_monsters": entry['object']["place_monsters"],
-            "place_vehicles": entry['object']["place_vehicles"],
-            "place_rubble": entry['object']["place_rubble"],
-            "traps": entry['object']["traps"],
-            "place_liquids": entry['object']["place_liquids"],
-            "graffiti": entry['object']["graffiti"],
-            "zones": entry['object']["zones"],
-            "place_nested": entry['object']["place_nested"],
-            "place_corpses": entry['object']["place_corpses"],
-            "computers": entry['object']["computers"],
-            "place_computers": entry['object']["place_computers"],
-            "zones": entry['object']["zones"],
-            "zones": entry['object']["zones"],
-            "zones": entry['object']["zones"],
-            "zones": entry['object']["zones"],
-            "zones": entry['object']["zones"],
-            "zones": entry['object']["zones"],
-            "toilets": entry['object']['toilets']
-        };
-    };
-};
-class CDDAMapEntry {
-    constructor(fileName = "My_CDDA_Map",cddalayer = "") {
-        this.type = "mapgen";
-        this.method = "json";
-        this.om_terrain = fileName+cddalayer;
-        this.weight = 100;
-        this.object = {
-            "fill_ter": "t_floor",
-            "palettes": [],
-            "rows": [],
-            "terrain": {},
-            "furniture": {},
-            "place_loot": [],
-            "items": [],
-            "place_item": [],
-            "place_items": [],
-            "place_monsters": [],
-            "place_vehicles": []
-        };
-    };
-};
-class extensionConfig {
-    constructor(pathToProject,pathToCDDA = "~/cdda") {
-        this.filename = "tiled_cdda_extension.json";
-        this.pathToProject = pathToProject;
-        this.pathToTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx");
-        this.pathToTMX = FileInfo.toNativeSeparators(pathToProject + "/tmx");
-        this.pathToCDDA = pathToCDDA;
-        this.pathToTilesets = FileInfo.toNativeSeparators(pathToCDDA + "/gfx");
-        this.pathToPalettes = FileInfo.toNativeSeparators(pathToCDDA + "/data/json/mapgen_palettes");
-        this.chosenTileset = "ChibiUltica";
-        this.pathToChosenTileset = FileInfo.toNativeSeparators(this.pathToTilesets + "/" + this.chosenTileset);
-        this.pathToJSON = FileInfo.toNativeSeparators(this.pathToChosenTileset + "/tile_config.json");
-    };
-};
 
 function makeEmptyMap(){
     let tmname = 'CDDA_map_24x24'
@@ -925,13 +863,13 @@ function findTileInTilesets(){
     let cdda_id_tofind = tiled.prompt(`Find tile with corresponding CDDA ID:`,"t_floor","Find Tile by CDDA ID").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"")
     tiled.log(`Searching for '${cdda_id_tofind}'...`)
     var ts;
-    let tsxs = getFilesInPath(config.pathToTSX)
+    let tsxs = getFilesInPath(config.pathToChosenTilesetTSX)
 
     for(let filename of tsxs){
         if (!filename.match(/\.tsx$/)){
             continue
         }
-        let filepath = FileInfo.toNativeSeparators(config.pathToTSX+ "/" +filename)
+        let filepath = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+ "/" +filename)
         tiled.log(`${filepath}`)
         let tsxData = TSXread(filepath)
         for ( let tileid in tsxData.tiles ){
@@ -949,6 +887,85 @@ function findTileInTilesets(){
     }
     tiled.log(`'${cdda_id_tofind}' not found.`)
 }
+class CDDAMapEntryImport {
+    constructor(entry) {
+        this.name = entry['om_terrain'];
+        this.width = entry['object']['rows'][0].length;
+        this.height = entry['object']['rows'].length;
+        this.fill_ter = entry['object']['fill_ter'];
+        this.weight = entry['weigth'];
+        this.object = { // place_ uses x,y otherwise uses tile symbol
+            "flags": entry['object']['flags'],
+            "fill_ter": entry['object']['fill_ter'],
+            "palettes": entry['object']['palettes'],
+            "predecessor_mapgen": entry['object']['predecessor_mapgen'],
+            "distribution": entry['object']["distribution"],
+            "rows": entry['object']['rows'],
+            "terrain":entry['object']["terrain"],
+            "furniture": entry['object']["furniture"],
+            "place_loot": entry['object']["place_loot"],
+            "place_item": entry['object']["place_item"],
+            "items": entry['object']["items"],
+            "sealed_item": entry['object']["sealed_item"],
+            "place_items": entry['object']["place_items"],
+            "place_monsters": entry['object']["place_monsters"],
+            "place_vehicles": entry['object']["place_vehicles"],
+            "place_rubble": entry['object']["place_rubble"],
+            "traps": entry['object']["traps"],
+            "place_liquids": entry['object']["place_liquids"],
+            "graffiti": entry['object']["graffiti"],
+            "zones": entry['object']["zones"],
+            "place_nested": entry['object']["place_nested"],
+            "place_corpses": entry['object']["place_corpses"],
+            "computers": entry['object']["computers"],
+            "place_computers": entry['object']["place_computers"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "zones": entry['object']["zones"],
+            "toilets": entry['object']['toilets']
+        };
+    };
+};
+class CDDAMapEntry {
+    constructor(fileName = "My_CDDA_Map",cddalayer = "") {
+        this.type = "mapgen";
+        this.method = "json";
+        this.om_terrain = fileName+cddalayer;
+        this.weight = 100;
+        this.object = {
+            "fill_ter": "t_floor",
+            "palettes": [],
+            "rows": [],
+            "terrain": {},
+            "furniture": {},
+            "place_loot": [],
+            "items": [],
+            "place_item": [],
+            "place_items": [],
+            "place_monsters": [],
+            "place_vehicles": []
+        };
+    };
+};
+class extensionConfig {
+    constructor(pathToProject,pathToCDDA = "~/cdda") {
+        this.filename = configfilename;
+        this.pathToProject = pathToProject;
+        this.pathToTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx");
+        this.pathToTMX = FileInfo.toNativeSeparators(pathToProject + "/tmx");
+        this.pathToCDDA = pathToCDDA;
+        this.pathToTilesets = FileInfo.toNativeSeparators(pathToCDDA + "/gfx");
+        this.pathToPalettes = FileInfo.toNativeSeparators(pathToCDDA + "/data/json/mapgen_palettes");
+        this.chosenTileset = "ChibiUltica";
+        this.pathToChosenTileset = FileInfo.toNativeSeparators(this.pathToTilesets + "/" + this.chosenTileset);
+        this.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx/"+this.chosenTileset)
+        this.pathToJSON = FileInfo.toNativeSeparators(this.pathToChosenTileset + "/tile_config.json");
+    };
+};
+
 
 // tiled.log(tiled.actions)
 // tiled.trigger(tiled.actions)
@@ -957,7 +974,7 @@ function findTileInTilesets(){
 const action_importTileset = tiled.registerAction("CustomAction_importTileset", function(action_importTileset) {
     tiled.log(`${action_importTileset.text} was run.`)
     initialize()
-    importTilesets(config.pathToJSON)
+    importTilesets()
 });
 //Create New Map
 const action_createNewMap = tiled.registerAction("CustomAction_createNewMap", function(action_createNewMap) {
