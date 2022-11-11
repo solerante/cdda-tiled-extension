@@ -4,22 +4,41 @@
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
 var verbose = true
+
 var pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
+var pathToExtras = FileInfo.toNativeSeparators(tiled.extensionsPath + "/cdda_map_extension_extras");
+var pathToMainConfig = FileInfo.toNativeSeparators(pathToExtras + "/cdda_map_extension_main_config.json")
 
 const mapLayerTypes = ['terrain','furniture']
 const entityLayerTypes = ["items", "place_item", "place_items", "place_loot", "place_monsters", "place_vehicles"]
 const possible_unicode_chars = "#$%&'()*+,-.0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_`abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¸¹º»¼½¾¿"
 
-var skipOverlays = true;
+var skipOverwrite = true;
 var overwriteExisting = true;
-const configfilename = "tiled_cdda_extension.json"
+const configfilename = "tiled_cdda_extension_config.json"
 var config = {}
 
 
 function initialize(){
+    if(!File.exists(pathToMainConfig)){
+        var masterconfigSet = { "pathToProject" : "~/cdda_tiled_project" }
+        var mainConfigfile = new TextFile(FileInfo.cleanPath(pathToMainConfig), TextFile.WriteOnly); 
+        mainConfigfile.write(JSON.stringify(masterconfigSet,null,2));
+        mainConfigfile.commit();
+    }
+    var masterconfig = readJSONFile(pathToMainConfig)
+    var loggedPathToProject = masterconfig.pathToProject
+    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:",loggedPathToProject,"Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+    if(pathToProject != loggedPathToProject){
+        masterconfig.pathToProject = pathToProject;
+        var updateConfigfile = new TextFile(FileInfo.cleanPath(pathToMainConfig), TextFile.WriteOnly); 
+        updateConfigfile.write(JSON.stringify(masterconfig,null,2));
+        updateConfigfile.commit();
+    }
+    
+    
     // if ( Object.keys(config).length != 0 ) { return; }
     // var activeAsset = tiled.activeAsset;
-    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:","/home/user/cdda_tiled_project","Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
     var pathToConfig = FileInfo.toNativeSeparators(pathToProject+"/"+configfilename)
     if(!File.exists(pathToProject)){File.makePath(pathToProject);}
 
@@ -30,14 +49,38 @@ function initialize(){
         if( !File.exists(config.pathToTSX) ){File.makePath(config.pathToTSX);}
         if( !File.exists(config.pathToTMX) ){File.makePath(config.pathToTMX);}
 
-        var file = new TextFile(FileInfo.cleanPath(pathToConfig), TextFile.WriteOnly); 
-        file.write(JSON.stringify(config,null,2));
-        file.commit();
+        var configfile = new TextFile(FileInfo.cleanPath(pathToConfig), TextFile.WriteOnly); 
+        configfile.write(JSON.stringify(config,null,2));
+        configfile.commit();
     } else {
         tiled.log(`config file found at ${pathToConfig}`) 
         config = readJSONFile(pathToConfig)
         if( !File.exists(config.pathToTSX) ){File.makePath(config.pathToTSX);}
         if( !File.exists(config.pathToTMX) ){File.makePath(config.pathToTMX);}
+    }
+    tiled.log("Generating custom tileset.");
+    generateCustomTileset();
+    // if( !File.exists(config.pathToCustomTileset) ){tiled.log("generating custom tileset.");generateCustomTileset();}
+
+}
+
+// custom tileset
+function generateCustomTileset(){
+    // File.exists(FileInfo.toNativeSeparators(tiled.extensionsPath+"/cdda_map_extension_extras"))
+    if( File.exists(config.pathToExtras) ){
+        let tilesetname = "cdda_ext_custom_tileset"
+        let tileset = new Tileset(tilesetname)
+        for(let filepath of getRecursiveFilePathsInFolder(config.pathToExtras)){
+            if (!filepath.match(/\.png$/)){continue;}
+            if( verbose ){tiled.log(`adding '${filepath}' to custom tileset.`);}
+            let tile = tileset.addTile();
+            tile.setProperty("CDDA_ID_0",FileInfo.baseName(filepath))
+            let img = new Image(filepath);
+            tile.setImage(img);
+        }
+        tiled.tilesetFormat("tsx").write(tileset,config.pathToCustomTileset)
+    } else {
+        tiled.log("cannot find 'extras' folder.")
     }
 }
 
@@ -57,6 +100,7 @@ function writeToFile(filepath,data) {
 }
 function readJSONFile(filepath){
         const file = new TextFile(filepath, TextFile.ReadOnly)
+        file.codec = "UTF-8"
         const file_data = file.readAll()
         file.close()
         return JSON.parse(file_data)
@@ -82,7 +126,7 @@ function getFoldersInPath(path){ return File.directoryEntries(path, 0x400 | 0x20
 function importTilesets(){
     
     config.pathToChosenTileset = FileInfo.toNativeSeparators(tiled.prompt("Path to Tileset folder:",config.pathToChosenTileset,"Tileset Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
-    config.chosenTileset = config.pathToChosenTileset.match(/(?:\/|\\|\\\\)(?:(\.?\w+$)|(?:(\.?\w+)(?:\/|\\|\\\\)\w+\.\w+))/)[1]
+    config.chosenTileset = config.pathToChosenTileset.match(/(?:\/|\\|\\\\)(?:(\.?.+$)|(?:(\.?.+)(?:\/|\\|\\\\).+\..+))/)[1]
     config.pathToJSON = FileInfo.toNativeSeparators(config.pathToChosenTileset + "/tile_config.json");
     
     config.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(config.pathToProject + "/tsx/"+config.chosenTileset)
@@ -244,7 +288,7 @@ function importTilesets(){
         jts.name = FileInfo.baseName(imgFile)
 
         //skip existing ("just skip existing altogether bro") and 'fallback'
-        let shouldSkip = !overwriteExisting && File.exists(config.pathToChosenTilesetTSX + "/" + jts.name + ".tsx") || skipOverlays && imgFile.match(/(fallback)/);
+        let shouldSkip = !overwriteExisting && File.exists(config.pathToChosenTilesetTSX + "/" + jts.name + ".tsx") || skipOverwrite && imgFile.match(/(fallback)/);
         if (shouldSkip){
             tiled.log(`skipping ${jts.name}`)
             return [0,0];
@@ -334,12 +378,13 @@ function prepareTilemap(mapName = 'CDDA_map_24x24',mapsize = 24){
     tiled.log(`tilemap name: ${tmname}`)
     return tm
 }
-function buildTilePaletteDict(j,i){
+function buildTilePaletteDict(import_map){
     tiled.log(`------- Palette Loading Area ---------`);
 
     function getPaletteFileData(mapFilePalettes,filepath){
-        if(verbose){tiled.log(`getting data from ${filepath}`);}
+        if(verbose >= 2){tiled.log(`checking palette '${filepath}'`);}
         const file = new TextFile(filepath, TextFile.ReadOnly)
+        file.codec = "UTF-8"
         const file_data = file.readAll()
         file.close()
         let paletteFileJSON = JSON.parse(file_data)
@@ -355,7 +400,37 @@ function buildTilePaletteDict(j,i){
                 for (let mapLayerType of mapLayerTypes){
                     thisPalette[mapLayerType] = {}
                     for (let key in p[mapLayerType]){
-                        thisPalette[mapLayerType][key] = p[mapLayerType][key]
+                        let temparray = []
+                        // if string
+                        if(typeof p[mapLayerType][key] === "string"){
+                            thisPalette[mapLayerType][key] = p[mapLayerType][key]
+                        }
+                        // if array
+                        if(Array.isArray(p[mapLayerType][key])){
+                            if(Array.isArray(p[mapLayerType][key][0])){
+                                temparray = []
+                                for(let subarray of p[mapLayerType][key]){
+                                    (Array.isArray(subarray)) ? temparray.push(subarray[0]) : temparray.push(subarray);
+                                    
+                                }
+                                thisPalette[mapLayerType][key] = temparray
+                            } else {
+                                thisPalette[mapLayerType][key] = p[mapLayerType][key]
+                            }
+                        }
+                        // if object (dict)
+                        if(p[mapLayerType][key].constructor == Object){
+                            if(p[mapLayerType][key].hasOwnProperty("param")){
+                                if(typeof p[mapLayerType][key].param === "string"){
+                                    thisPalette[mapLayerType][key] = p[mapLayerType][key].param
+                                }
+                            }
+                            if(p[mapLayerType][key].hasOwnProperty("switch")){
+                                if(p[mapLayerType][key].switch.hasOwnProperty("param")){
+                                    thisPalette[mapLayerType][key] = p[mapLayerType][key].switch.param
+                                }
+                            }
+                        }
                         tiled.log(`\t${key} > ${thisPalette[mapLayerType][key]}\tadded to palette'${mapLayerType}'.`)
                     }
                 }
@@ -363,24 +438,23 @@ function buildTilePaletteDict(j,i){
         }
         return thisPalette;
     }
-    function getMapfileCustomPalette(j){
+    function getMapfileCustomPalette(import_map){
         if(verbose){tiled.log(`getting data from map file`);}
         let thisPalette = {}
         for (let mapLayerType of mapLayerTypes){
             tiled.log(`map layer '${mapLayerType}'`)
             thisPalette[mapLayerType] = {}
-            for (let key in j[i]['object'][mapLayerType]){
-                thisPalette[mapLayerType][key] = j[i]['object'][mapLayerType][key]
-                // if(mapPalette[mapLayerType][key] == "interior_wall_type"){
-
-                // }
-                // if (typeof j[i]['object'][mapLayerType][key] == "string"){
-                //     thisPalette[key] = j[i]['object'][mapLayerType][key]
-                // } else {
-                //     thisPalette[key] = j[i]['object'][mapLayerType][key][0]
-                // }
-                // // tiled.log(`${key} > ${j[i]['object'][mapLayerType][key]}`)
-                tiled.log(`\t${key} > ${thisPalette[mapLayerType][key]}\tadded to palette'${mapLayerType}'.`)
+            for (let key in import_map.object[mapLayerType]){
+                // if string
+                if(typeof import_map.object[mapLayerType][key] === "string"){
+                    thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key]
+                }
+                if(Array.isArray(import_map.object[mapLayerType][key])){
+                    thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key][0]
+                    // thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key][Math.floor(Math.random() * import_map.object[mapLayerType][key].length)]
+                }
+                
+                tiled.log(`custom key '${key}' > '${thisPalette[mapLayerType][key]}'\tadded to palette'${mapLayerType}'.`)
             }
         }
         return thisPalette;
@@ -393,11 +467,11 @@ function buildTilePaletteDict(j,i){
         mapPalette[mapLayerType] = {};
     };
 
-    if(j[i]['object'].hasOwnProperty("palettes")){
+    if(import_map['object'].hasOwnProperty("palettes")){
         tiled.log(`------- importing preset palette symbols ----`);
         let palettePaths = getRecursiveFilePathsInFolder(config.pathToPalettes);
         for(let filepath of palettePaths){
-            let tempPaletteDict = getPaletteFileData(j[i]['object']['palettes'],filepath);
+            let tempPaletteDict = getPaletteFileData(import_map['object']['palettes'],filepath);
             for ( let mapLayerType of mapLayerTypes ){
                 for ( let key in tempPaletteDict[mapLayerType]){
                     mapPalette[mapLayerType][key] = tempPaletteDict[mapLayerType][key]
@@ -408,7 +482,7 @@ function buildTilePaletteDict(j,i){
     }
 
     tiled.log(`------- importing mapfile symbols ---------`)
-    tempPaletteDict = getMapfileCustomPalette(j);
+    tempPaletteDict = getMapfileCustomPalette(import_map);
     for (let mapLayerType of mapLayerTypes){
         for ( let key in tempPaletteDict[mapLayerType]){
             mapPalette[mapLayerType][key] = tempPaletteDict[mapLayerType][key]
@@ -424,34 +498,34 @@ function buildTilePaletteDict(j,i){
         }
     }
     // clean up arrays
-    let hadArray = true;
-    while (hadArray){
-        hadArray = false;
-        for (let mapLayerType of mapLayerTypes){
-            for (let item of Object.keys(mapPalette[mapLayerType])){
-                if (Array.isArray(mapPalette[mapLayerType][item])){
-                    hadArray = true;
-                    // tiled.log("array found")
-                    // tiled.log(mapPalette[mapLayerTypes[set]][item])
-                    mapPalette[mapLayerType][item] = mapPalette[mapLayerType][item][0]
-                    // tiled.log("pruned to")
-                    // tiled.log(mapPalette[mapLayerTypes[set]][item])
-                }
-                if (typeof mapPalette[mapLayerType][item] === "object"){
-                    if ("fallback" in mapPalette[mapLayerType][item]){
-                        mapPalette[mapLayerType][item] = mapPalette[mapLayerType][item]["fallback"]
-                    }
-                }
+    // let hadArray = true;
+    // while (hadArray){
+    //     hadArray = false;
+    //     for (let mapLayerType of mapLayerTypes){
+    //         for (let item of Object.keys(mapPalette[mapLayerType])){
+    //             if (Array.isArray(mapPalette[mapLayerType][item])){
+    //                 hadArray = true;
+    //                 // tiled.log("array found")
+    //                 // tiled.log(mapPalette[mapLayerTypes[set]][item])
+    //                 mapPalette[mapLayerType][item] = mapPalette[mapLayerType][item][0]
+    //                 // tiled.log("pruned to")
+    //                 // tiled.log(mapPalette[mapLayerTypes[set]][item])
+    //             }
+    //             if (typeof mapPalette[mapLayerType][item] === "object"){
+    //                 if ("param" in mapPalette[mapLayerType][item]){
+    //                     mapPalette[mapLayerType][item] = mapPalette[mapLayerType][item]["param"]
+    //                 }
+    //             }
 
 
-                /* else if(typeof mapPalette[mapLayerType][item] != "string"){
-                    if(Object.keys(mapPalette[mapLayerType][item]).length > 0){
-                        mapPalette[mapLayerType][item] = mapPalette[mapLayerType][item]["fallback"]
-                    }
-                }*/
-            }
-        }
-    }
+    //             /* else if(typeof mapPalette[mapLayerType][item] != "string"){
+    //                 if(Object.keys(mapPalette[mapLayerType][item]).length > 0){
+    //                     mapPalette[mapLayerType][item] = mapPalette[mapLayerType][item]["fallback"]
+    //                 }
+    //             }*/
+    //         }
+    //     }
+    // }
 
     return mapPalette;
 }
@@ -473,20 +547,22 @@ function importMap(){
     let j = JSON.parse(c);
     let tm = prepareTilemap(j[0]['om_terrain'],j[0]['object']['rows'][0].length)
 
+    let layergroups = []
+
     for(let i in j){
-        var importMap = new CDDAMapEntryImport(j[i])
+        if(j[i].type != "mapgen" || j[i].method != "json"){continue;} // must be mapgen and json
+        var import_map = new CDDAMapEntryImport(j[i])
 
-        var importMapName = j[i]['om_terrain'];
-        var importMapSize = j[i]['object']['rows'][0].length;
-        tiled.log(`${j[i]['om_terrain']}`)
-        var has_fill_ter = j[i]['object'].hasOwnProperty("fill_ter")
-        if (has_fill_ter){ var importMapFill = j[i]['object']['fill_ter'];tiled.log(`${j[i]['object']['fill_ter']}`);}
-        // tiled.log(`${j[i]['object']['fill_ter']}`)
+        var importMapName = import_map['om_terrain'];
+        var importMapSize = import_map['object']['rows'][0].length;
+        tiled.log(`Working on map '${import_map.om_terrain}'`)
+        // check if has fill_ter, TODO remove later
+        if (import_map.object.hasOwnProperty("fill_ter")){ var importMapFill = import_map.object.fill_ter;tiled.log(`Has fill_ter: ${import_map.object.fill_ter}`);}
 
-        let mapArray = importMap['object']['rows']
+        let mapArray = import_map['object']['rows']
 
         // init mapPallete
-        let mapPalette = buildTilePaletteDict(j,i)
+        let mapPalette = buildTilePaletteDict(import_map)
 
         tiled.log(`-------after array clean---------`)
         for (let mapLayerType of mapLayerTypes){
@@ -494,10 +570,13 @@ function importMap(){
                 tiled.log(`'${c}' > '${mapPalette[mapLayerType][c]}'\t\tadded to ${mapLayerType}`)
             }
         }
-        tiled.log(`Original Map`)
-        for (let row of mapArray){
-            tiled.log(row)
+        if(verbose){
+            tiled.log(`Original Map`)
+            for (let row of mapArray){
+                tiled.log(row)
+            }
         }
+        
 
         //get tile numbers, cdda IDs, and tilset file 
         let tileDict = {};
@@ -516,30 +595,30 @@ function importMap(){
             }
         }
 
-        let tsxs = getFilesInPath(config.pathToChosenTilesetTSX);
-        for(let filename of tsxs){
-            if (!filename.match(/\.tsx$/)){
+        let tsxs = getRecursiveFilePathsInFolder(config.pathToChosenTilesetTSX);
+        tsxs.push(config.pathToCustomTileset) // add custom tsx to the mix
+        for(let filepath of tsxs){
+            if (!filepath.match(/\.tsx$/)){
                 continue;
             }
-            let filepath = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+ "/" +filename)
             tiled.log(`file ${filepath}`)
 
-            let tsxTiles = TSXread(filepath) // { filepath, tiles: { id: { class, probabiltiy, properties: { property: value }}}}
+            let tsxTiles = TSXread(filepath) //  filepath returns { tiles: { id: { class, probabiltiy, properties: { property: value }}}}
             let tilesetname = FileInfo.baseName(filepath)
 
 
             for ( let tsxTileID in tsxTiles.tiles ){
                 if (!tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]){continue;}
                 // fill terrain
-                if (has_fill_ter){
-                    if (tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"] == importMap.object.fill_ter){
-                        if (verbose){tiled.log(`-${tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]} found in palette with fill tile ${importMap.object.fill_ter} with local Tile ID ${tsxTileID}`)}
+                if (import_map.object.hasOwnProperty("fill_ter")){
+                    if (tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"] == import_map.object.fill_ter){
+                        if (verbose){tiled.log(`-${tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]} found in palette with fill tile ${import_map.object.fill_ter} with local Tile ID ${tsxTileID}`)}
                         // tileDict["fill_ter"] = [tile_ID, tileobject, filepath];
                         if (verbose){tiled.log(`Adding tileset ${filepath} to map.`);}
-                            if ( !tilesetObjects.hasOwnProperty(tilesetname) ){
-                                tilesetObjects[tilesetname] = tiled.open(filepath)
-                            }
-                            tileDict["fill_ter"] = [tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"],tilesetObjects[tilesetname].findTile(tsxTileID), filepath]
+                        if ( !tilesetObjects.hasOwnProperty(tilesetname) ){ // open tileset if not already open
+                            tilesetObjects[tilesetname] = tiled.open(filepath)
+                        }
+                        tileDict["fill_ter"] = [tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"],tilesetObjects[tilesetname].findTile(tsxTileID), filepath]
                         if(!tilesetsToLoad.includes(filepath)){
                             tilesetsToLoad.push(filepath);
                         };
@@ -552,7 +631,7 @@ function importMap(){
                     let tile_ID = tsxTileID;
                     for (let mapLayerType of mapLayerTypes){
                         if (Object.values(mapPalette[mapLayerType]).includes(cdda_ID)){
-                            if (verbose){tiled.log(`-'${cdda_ID}'' found in tileset file with local Tile ID '${tile_ID}'`);}
+                            if (verbose){tiled.log(`-'${cdda_ID}' found in tileset file with local Tile ID '${tile_ID}'`);}
                             
                             if ( !tilesetObjects.hasOwnProperty(tilesetname) ){
                                 tilesetObjects[tilesetname] = tiled.open(filepath)
@@ -633,6 +712,9 @@ function importMap(){
 
         // prepare map for tiled
         function prepareMapArrayForTiled(mapLayerName){
+            if (verbose){tiled.log(`working on map layer '${mapLayerName}'`);}
+            if (mapLayerName == "fill_ter"){return;};
+            let tMapArray = []
             if (!mapPalette.hasOwnProperty(mapLayerName) && mapLayerName != "fill_ter"){tiled.log(`missing ${mapLayerName}`);return;}
             for (let row in mapArray){
                 let tRow = []
@@ -640,12 +722,14 @@ function importMap(){
                     let thiscell = mapArray[row][cell]
                     let newcell = 0
                     // terrain fill
-                    if (has_fill_ter){
-                        if (mapLayerName == "fill_ter"){
-                            if (verbose){tiled.log(`( ${cell}, ${row} ) - fill_ter: '${tileDict["fill_ter"][0]}'`);}
-                            newcell = tileDict["fill_ter"][1]
-                            tMapArray.push([cell,row,newcell])
-                            continue;
+                    if (mapLayerName == "fill_ter"){
+                        if (import_map.object.hasOwnProperty("fill_ter")){
+                            if(tileDict["fill_ter"] != undefined){
+                                if (verbose){tiled.log(`( ${cell}, ${row} ) - fill_ter: '${tileDict["fill_ter"][0]}'`);}
+                                newcell = tileDict["fill_ter"][1]
+                                tMapArray.push([cell,row,newcell])
+                                continue;
+                            }
                         };
                     };
                     // hasownproperty is includes for keys
@@ -673,7 +757,7 @@ function importMap(){
             return tMapArray;
         }
 
-        if (has_fill_ter){
+        if (import_map.object.hasOwnProperty("fill_ter")){
             mapArrays["fill_ter"] = prepareMapArrayForTiled("fill_ter")
         }
         for (let mapLayerType of mapLayerTypes){
@@ -695,7 +779,7 @@ function importMap(){
                 tl.width = importMapSize;
                 tl.height = importMapSize
                 if(layername == "fill_ter"){
-                    tl.setProperty("cdda_id_0", tileDict["fill_ter"][0])
+                    // tl.setProperty("cdda_id_0", tileDict["fill_ter"][0])
                 }
                 tl.setProperty("cdda_layer", layername)
                 let tle = tl.edit()
@@ -747,7 +831,7 @@ function importMap(){
         }
         // if (layername == 'fill_ter'){tl.locked = true;}
 
-        if (has_fill_ter){
+        if (import_map.object.hasOwnProperty("fill_ter")){
             layergroup.addLayer(prepareTiledLayer("fill_ter"));
         };
         for (let mapLayerType of mapLayerTypes){
@@ -757,7 +841,10 @@ function importMap(){
             if (entityLayerType == "items"){continue;};
             layergroup.addLayer(prepareTiledLayer(entityLayerType))
         }
-        tm.addLayer(layergroup)
+        layergroups.push(layergroup)
+    }
+    for (let lg in layergroups.reverse()){
+        tm.addLayer(layergroups[lg]);
     }
     tm.setProperty("import_tileset",config.chosenTileset)
     
@@ -807,7 +894,7 @@ function makeEmptyMap(){
 
 /* function getPaletteData(filepath){
     // fill terrain
-    if (has_fill_ter){
+    if (import_map.object.hasOwnProperty("fill_ter")){
         if (tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"] == importMap.object.fill_ter){
             if (verbose){tiled.log(`-${tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]} found in palette with fill tile '${importMap.object.fill_ter}' with local Tile ID ${tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]}`)}
             // tileDict["fill_ter"] = [tile_ID, filepath];
@@ -888,7 +975,7 @@ function prepareExportMap(map){
                     if(verbose){tiled.log(`'${layer.name}' has palette '${layer.properties()[p]}'`);}
                     paletteArray.push(layer.properties()[p])
             }
-            mapEntry["palettes"] = paletteArray
+            mapEntry.object["palettes"] = paletteArray
         }
 
         // find assigned palettes
@@ -901,7 +988,7 @@ function prepareExportMap(map){
             let palette_json = readJSONFile(filepath)
             for (let palette of palette_json){
                 if(verbose >= 2){tiled.log(`checking '${palette.id}' in '${filepath}'`);}
-                if(mapEntry["palettes"].includes(palette.id)){
+                if(mapEntry.object["palettes"].includes(palette.id)){
                     if(verbose){tiled.log(`found palette '${palette.id}' in '${filepath}'`);}
                     loaded_palettes.push(palette);
                 }
@@ -1051,6 +1138,7 @@ var CDDAMapFormat = {
 
         var file = new TextFile(fileName, TextFile.WriteOnly);
         file.write(JSON.stringify(m, null, 2));
+        file.codec = "UTF-8"
         file.commit();
     }
 }
@@ -1102,7 +1190,7 @@ function findTileInTilesets(){
         for ( let tileid in tsxData.tiles ){
             if( tsxData.tiles[tileid].hasOwnProperty("properties")){
                 for ( let property in tsxData.tiles[tileid].properties ){
-                    if( verbose ){tiled.log(`checking '${property}' in id '${tileid}'`);}
+                    if( verbose >= 2){tiled.log(`checking '${property}' in id '${tileid}'`);}
                     if(tsxData.tiles[tileid].properties[property] == cdda_id_tofind){
                         tiled.log(`'${cdda_id_tofind}' found. '${tileid}' in '${filename}'`)
                         tiled.open(filepath)
@@ -1117,6 +1205,7 @@ function findTileInTilesets(){
 class CDDAMapEntryImport {
     constructor(entry) {
         this.name = entry['om_terrain'];
+        this.om_terrain = entry['om_terrain'];
         this.width = entry['object']['rows'][0].length;
         this.height = entry['object']['rows'].length;
         this.fill_ter = entry['object']['fill_ter'];
@@ -1161,7 +1250,7 @@ class CDDAMapEntry {
         this.type = "mapgen";
         this.method = "json";
         this.om_terrain = om_terrain;
-        this.weight = 100;
+        this.weight = 1000;
         this.object = {
             "fill_ter": "",
             "palettes": [],
@@ -1180,6 +1269,8 @@ class CDDAMapEntry {
 class extensionConfig {
     constructor(pathToProject,pathToCDDA = "~/cdda") {
         this.filename = configfilename;
+        this.pathToExtras = pathToExtras;
+        this.pathToCustomTileset = FileInfo.toNativeSeparators(this.pathToExtras + "/cdda_custom_tileset.tsx");
         this.pathToProject = pathToProject;
         this.pathToTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx");
         this.pathToTMX = FileInfo.toNativeSeparators(pathToProject + "/tmx");
