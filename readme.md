@@ -9,7 +9,7 @@ The 'extras' folder contains png images for the extension tileset.
 
 ![tiled_screenshot](https://user-images.githubusercontent.com/30750303/199577624-fcc35ebf-7ec3-4617-9c5e-3c670f156607.png)
 
-## Menu Actions:
+## Menu Actions
 
 ### File > Import CDDA Tileset
 
