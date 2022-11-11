@@ -5,9 +5,10 @@
 //JSON.stringify(m, null, 2) sringify with formatting
 var verbose = true
 
-var pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
-var pathToExtras = FileInfo.toNativeSeparators(tiled.extensionsPath + "/cdda_map_extension_extras");
-var pathToMainConfig = FileInfo.toNativeSeparators(pathToExtras + "/cdda_map_extension_main_config.json")
+const pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
+const pathToExtras = FileInfo.toNativeSeparators(tiled.extensionsPath + "/cdda_map_extension_extras");
+const pathToMainConfig = FileInfo.toNativeSeparators(pathToExtras + "/cdda_map_extension_main_config.json")
+const configfilename = "tiled_cdda_extension_config.json";
 
 const mapLayerTypes = ['terrain','furniture']
 const entityLayerTypes = ["items", "place_item", "place_items", "place_loot", "place_monsters", "place_vehicles"]
@@ -15,43 +16,35 @@ const possible_unicode_chars = "#$%&'()*+,-.0123456789:;<=>?@ABCDEFGHIJKLMNOPQRS
 
 var skipOverwrite = true;
 var overwriteExisting = true;
-const configfilename = "tiled_cdda_extension_config.json"
-var config = {}
+var config = {};
+var mainConfig = {};
 
 
 function initialize(){
     if(!File.exists(pathToMainConfig)){
-        var masterconfigSet = { "pathToProject" : "~/cdda_tiled_project" }
+        mainConfig = { "pathToProject" : "~/cdda_tiled_project" }
         var mainConfigfile = new TextFile(FileInfo.cleanPath(pathToMainConfig), TextFile.WriteOnly); 
-        mainConfigfile.write(JSON.stringify(masterconfigSet,null,2));
+        mainConfigfile.write(JSON.stringify(mainConfig,null,2));
         mainConfigfile.commit();
     }
-    var masterconfig = readJSONFile(pathToMainConfig)
-    var loggedPathToProject = masterconfig.pathToProject
+    mainConfig = readJSONFile(pathToMainConfig)
+    var loggedPathToProject = mainConfig.pathToProject
     var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:",loggedPathToProject,"Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
     if(pathToProject != loggedPathToProject){
-        masterconfig.pathToProject = pathToProject;
-        var updateConfigfile = new TextFile(FileInfo.cleanPath(pathToMainConfig), TextFile.WriteOnly); 
-        updateConfigfile.write(JSON.stringify(masterconfig,null,2));
-        updateConfigfile.commit();
+        mainConfig.pathToProject = pathToProject;
+        updateMainConfig();
     }
     
-    
-    // if ( Object.keys(config).length != 0 ) { return; }
-    // var activeAsset = tiled.activeAsset;
-    var pathToConfig = FileInfo.toNativeSeparators(pathToProject+"/"+configfilename)
-    if(!File.exists(pathToProject)){File.makePath(pathToProject);}
+    var pathToConfig = FileInfo.toNativeSeparators(mainConfig.pathToProject+"/"+configfilename)
+    if(!File.exists(mainConfig.pathToProject)){File.makePath(mainConfig.pathToProject);}
 
     if(!File.exists(pathToConfig)){
         tiled.log(`no config file found at ${pathToConfig}. Making new config file.`) 
         let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
-        config = new extensionConfig(pathToProject,givenPathToCDDA);
+        config = new extensionConfig(mainConfig.pathToProject,givenPathToCDDA);
         if( !File.exists(config.pathToTSX) ){File.makePath(config.pathToTSX);}
         if( !File.exists(config.pathToTMX) ){File.makePath(config.pathToTMX);}
-
-        var configfile = new TextFile(FileInfo.cleanPath(pathToConfig), TextFile.WriteOnly); 
-        configfile.write(JSON.stringify(config,null,2));
-        configfile.commit();
+        updateConfig()
     } else {
         tiled.log(`config file found at ${pathToConfig}`) 
         config = readJSONFile(pathToConfig)
@@ -63,6 +56,17 @@ function initialize(){
     // if( !File.exists(config.pathToCustomTileset) ){tiled.log("generating custom tileset.");generateCustomTileset();}
 
 }
+function updateMainConfig(){
+    var updateConfigfile = new TextFile(FileInfo.cleanPath(pathToMainConfig), TextFile.WriteOnly); 
+    updateConfigfile.write(JSON.stringify(mainConfig,null,2));
+    updateConfigfile.commit();
+}
+function updateConfig(){
+    var pathToConfig = FileInfo.toNativeSeparators(mainConfig.pathToProject+"/"+configfilename)
+    var configfile = new TextFile(FileInfo.cleanPath(pathToConfig), TextFile.WriteOnly); 
+    configfile.write(JSON.stringify(config,null,2));
+    configfile.commit();
+}
 
 // custom tileset
 function generateCustomTileset(){
@@ -72,7 +76,7 @@ function generateCustomTileset(){
         let tileset = new Tileset(tilesetname)
         for(let filepath of getRecursiveFilePathsInFolder(config.pathToExtras)){
             if (!filepath.match(/\.png$/)){continue;}
-            if( verbose ){tiled.log(`adding '${filepath}' to custom tileset.`);}
+            if( verbose >= 2){tiled.log(`adding '${filepath}' to custom tileset.`);}
             let tile = tileset.addTile();
             tile.setProperty("CDDA_ID_0",FileInfo.baseName(filepath))
             let img = new Image(filepath);
@@ -382,7 +386,7 @@ function buildTilePaletteDict(import_map){
     tiled.log(`------- Palette Loading Area ---------`);
 
     function getPaletteFileData(mapFilePalettes,filepath){
-        if(verbose >= 2){tiled.log(`checking palette '${filepath}'`);}
+        if(verbose){tiled.log(`checking palette '${filepath}'`);}
         const file = new TextFile(filepath, TextFile.ReadOnly)
         file.codec = "UTF-8"
         const file_data = file.readAll()
@@ -467,7 +471,7 @@ function buildTilePaletteDict(import_map){
         mapPalette[mapLayerType] = {};
     };
 
-    if(import_map['object'].hasOwnProperty("palettes")){
+    if(import_map.object.hasOwnProperty("palettes")){
         tiled.log(`------- importing preset palette symbols ----`);
         let palettePaths = getRecursiveFilePathsInFolder(config.pathToPalettes);
         for(let filepath of palettePaths){
@@ -530,14 +534,20 @@ function buildTilePaletteDict(import_map){
     return mapPalette;
 }
 function importMap(){
-
-    let pathToMap = tiled.prompt("Path to CDDA .json map: ", FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json", "Path to Map"),"Select File").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder)
-    
+    let pathToMap;
+    if(!config.hasOwnProperty("importMapPath")){
+        config.importMapPath = FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json")
+    }
+    pathToMap = tiled.prompt("Path to CDDA .json map: ", config.importMapPath, "Select File").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder)
     if (pathToMap == false){
         tiled.log(`import canceled`)
         return;
     }
+    
     pathToMap = FileInfo.toNativeSeparators(pathToMap)
+    config.importMapPath = pathToMap;
+    updateConfig();
+    tiled.log(`Importing '${pathToMap}'`)
     //File.makePath(config.pathtoProject+'\\importedtsx')
 
     //read map file
@@ -545,13 +555,19 @@ function importMap(){
     let c = f.readAll();
     f.close();
     let j = JSON.parse(c);
-    let tm = prepareTilemap(j[0]['om_terrain'],j[0]['object']['rows'][0].length)
+    let tm;
+    for(let i in j){ // find valid entry for size
+        if(j[i].type != "mapgen" || j[i].method != "json"){continue;} // must be mapgen and json
+        tm = prepareTilemap(j[i]['om_terrain'],j[i]['object']['rows'][0].length)
+        break;
+    }
 
     let layergroups = []
 
     for(let i in j){
         if(j[i].type != "mapgen" || j[i].method != "json"){continue;} // must be mapgen and json
-        var import_map = new CDDAMapEntryImport(j[i])
+        var import_map = j[i]
+        // var import_map = new CDDAMapEntryImport(j[i])
 
         var importMapName = import_map['om_terrain'];
         var importMapSize = import_map['object']['rows'][0].length;
@@ -564,12 +580,12 @@ function importMap(){
         // init mapPallete
         let mapPalette = buildTilePaletteDict(import_map)
 
-        tiled.log(`-------after array clean---------`)
-        for (let mapLayerType of mapLayerTypes){
-            for (let c in mapPalette[mapLayerType]){
-                tiled.log(`'${c}' > '${mapPalette[mapLayerType][c]}'\t\tadded to ${mapLayerType}`)
-            }
-        }
+        // tiled.log(`-------after array clean---------`)
+        // for (let mapLayerType of mapLayerTypes){
+        //     for (let c in mapPalette[mapLayerType]){
+        //         tiled.log(`'${c}' > '${mapPalette[mapLayerType][c]}'\t\tadded to ${mapLayerType}`)
+        //     }
+        // }
         if(verbose){
             tiled.log(`Original Map`)
             for (let row of mapArray){
@@ -853,7 +869,7 @@ function importMap(){
     let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
     // let outputFileResults = writeToFile(pathToTMX,tm);
     (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
-    tiled.open(pathToTMX)
+    tiled.open(pathToTMX);
 }
 
 function makeEmptyMap(){
