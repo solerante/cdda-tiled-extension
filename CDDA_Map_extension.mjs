@@ -133,7 +133,7 @@ function importTilesets(){
     config.chosenTileset = config.pathToChosenTileset.match(/(?:\/|\\|\\\\)(?:(\.?.+$)|(?:(\.?.+)(?:\/|\\|\\\\).+\..+))/)[1]
     config.pathToJSON = FileInfo.toNativeSeparators(config.pathToChosenTileset + "/tile_config.json");
     
-    config.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(config.pathToProject + "/tsx/"+config.chosenTileset)
+    config.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(config.pathToProject + "/tsx/"+FileInfo.baseName(config.chosenTileset))
     if( !File.exists(config.pathToChosenTilesetTSX) ){File.makePath(config.pathToChosenTilesetTSX);}
     
     var configupdate = new TextFile(FileInfo.cleanPath(config.pathToProject+"/"+config.filename), TextFile.WriteOnly); 
@@ -373,9 +373,8 @@ function importTilesets(){
 
     }
 }
-function prepareTilemap(mapName = 'CDDA_map_24x24',mapsize = 24){
+function prepareTilemap(tmname = 'CDDA_map_24x24',mapsize = 24){
     let tm = new TileMap()
-    let tmname = mapName
     tm.setSize(mapsize, mapsize);
     tm.setTileSize(32, 32);
     tm.orientation = TileMap.Orthogonal;
@@ -873,8 +872,9 @@ function importMap(){
 }
 
 function makeEmptyMap(){
-    let tmname = 'CDDA_map_24x24'
-    let tm = prepareTilemap(tmname);
+    let mapsize = tiled.prompt("Map is square. Length of side in tiles:",24,"Map Size")
+    let tmname = `CDDA_map_${mapsize}x${mapsize}`
+    let tm = prepareTilemap(tmname,mapsize);
     let terrain = new TileLayer('Terrain');
     terrain.setProperty("cdda_layer","terrain")
     terrain.width = mapsize
@@ -891,8 +891,9 @@ function makeEmptyMap(){
     entities.setProperty("cdda_layer","entities")
     entities.width = mapsize
     entities.height = mapsize
+
     let layergroup = new GroupLayer("My_om_terrain")
-    layergroup.setProperty("cdda_palettes","")
+    layergroup.setProperty("cdda_palette_0","")
 
     //in order from bottom to top
     layergroup.addLayer(terrain)
@@ -902,10 +903,11 @@ function makeEmptyMap(){
     tm.addLayer(layergroup)
 
 
-    let filepath = config.pathToTMX+"/"+tmname+".tmx"
+    let filepath = FileInfo.toNativeSeparators(config.pathToTMX+"/"+tmname+".tmx")
         // return tiled.mapFormat(format[1]).write(data, filepath);
-    let outputFileResults = writeToFile(filepath,tm);
-    (outputFileResults == null) ? tiled.log(tmname + " file created successfully.") : tiled.log(tmname + " - FAILED to create file. Error: " + outputFileResults)
+    let outputFileResults = tiled.mapFormat("tmx").write(tm, filepath);
+    (outputFileResults == null) ? tiled.log(FileInfo.baseName(filepath) + " file created successfully.") : tiled.log(FileInfo.baseName(filepath) + " - FAILED to create file. Error: " + outputFileResults)
+    tiled.open(filepath);
 }
 
 /* function getPaletteData(filepath){
