@@ -30,7 +30,7 @@ function initialize(){
     mainConfig = readJSONFile(pathToMainConfig)
     var loggedPathToProject = mainConfig.pathToProject
     var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:",loggedPathToProject,"Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
-    if(pathToProject != loggedPathToProject){
+    if(pathToProject && pathToProject != loggedPathToProject){
         mainConfig.pathToProject = pathToProject;
         updateMainConfig();
     }
@@ -87,6 +87,7 @@ function generateCustomTileset(){
         tiled.log("cannot find 'extras' folder.")
     }
 }
+
 
 
 //tiled.tilesetFormat("tsx").write(ts,pathToTSXFile)
@@ -972,7 +973,7 @@ function makeEmptyMap(){
     }
 } */
 
-function prepareExportMap(map){
+function exportMap(map){
     initialize();
     // tiled.log(tiled.openAssets)
     if (!tiled.activeAsset.isTileMap){ return tiled.log(`Not on a valid tilemap.`); }
@@ -1013,127 +1014,180 @@ function prepareExportMap(map){
             }
         }
         
-        let layer_map_array = []
-
+        let layer_map_array = [] // the rows of the map
+        let mapsize = [];
+        // initialize rows with empty spaces
         for(let sublayer of layer.layers){
             if(sublayer.isTileLayer){
                 for (let y = 0; y < sublayer.height; y++){
-                    layer_map_array.push(" ".repeat(sublayer.width))
+                    layer_map_array.push(" ".repeat(sublayer.width)) // create empty rows in the size of the map
+                    mapsize = [sublayer.width,sublayer.height]
                 }
                 break;
             }
         }
 
-        let assigned_symbols_dict = {};
-        let assigned_symbols = [];
+        let assigned_symbols_dict = {}; // symbol to cdda id dictionary, by layer
+        let assigned_symbols = []; // array of used symbols
 
-        for(let palette of loaded_palettes){
-            for(let object in palette){
+        let assigned_cdda_id_symbols = {}; // cdda id to symbol dictionary, by cdda id
+
+        let custom_symbols_dict = {}; // symbol: {layer: [cdda_ids]}
+        let need_custom_assign = {};
+        let combined_symbols_dict = {}; // symbol: {layer: [cdda_ids]}
+        let coordinate_assignments = {}; // (x,y): [cdda_ids]
+
+        // get all cdda ids associated with each symbol in palette, by symbol
+        let palette_objects_with_symbols = ["terrain", "furniture"]
+        for(let palette of loaded_palettes){ // get symbols from palette by layer (terrain, furniture, items, etc.) to avoid using for custom assignment
+            for(let object of palette_objects_with_symbols){
+                if(!palette.hasOwnProperty(object)){continue;}
                 for(let symbol of Object.keys(palette[object])){
-                    if(!assigned_symbols.includes(symbol)){assigned_symbols.push(symbol);}
+
+                    if(!combined_symbols_dict.hasOwnProperty(symbol)){
+                        combined_symbols_dict[symbol] = []
+                    }
+                    if(palette[object][symbol].hasOwnProperty("param")){ // is object "param"
+                        combined_symbols_dict[symbol].push([palette[object][symbol].param])
+                    
+                    } else if(palette[object][symbol].hasOwnProperty("switch")){ // is object "switch"
+                        if(palette[object][symbol].switch.hasOwnProperty("param")){ 
+                            combined_symbols_dict[symbol].push([palette[object][symbol].switch.param])
+                        }
+                    
+                    }else if(Array.isArray(palette[object][symbol])){ // is array
+                        let temparray = []
+                        for(let entry of palette[object][symbol]){
+                            if(typeof entry === "string"){
+                                temparray.push([entry])
+                            }
+                            if(Array.isArray(entry)){
+                                temparray.push([entry[0]])
+                            }
+                        }
+                        combined_symbols_dict[symbol].push([temparray])
+                    } else if (typeof palette[object][symbol] === "string"){
+                        combined_symbols_dict[symbol].push([palette[object][symbol]])
+                    }
+
+                    if(!assigned_symbols.includes(symbol)){assigned_symbols.push(palette[object][symbol].param);}
                 }
             }
         }
-
-        // handle each sublayer
-
+        // get all assigned cdda ids by coordinate
         for(let sublayer of layer.layers){
-            if (sublayer.property("cdda_layer") == "fill_ter"){
-                // if(verbose){tiled.log(`fill terrain found`);}
-                mapEntry.object["fill_ter"] = sublayer.property("cdda_id_0");
-                continue;
-            }
-            let json_objs = {}
+            if (sublayer.property("cdda_layer") == "fill_ter"){ continue;};
             if(sublayer.isTileLayer){
-                if(verbose){tiled.log("");tiled.log(`working on sublayer '${sublayer.name}' - '${sublayer.width}' by '${sublayer.height}'`);}
-                
                 for (let y = 0; y < sublayer.height; y++){
-                    xloop:
                     for (let x = 0; x < sublayer.width; x++){
-                        // tiled.log(`${x}, ${y}`)
-                        if (sublayer.tileAt(x,y) != null) {
-                            if (typeof sublayer.tileAt(x,y).property("CDDA_ID_0") === "string") {
+                        if (sublayer.tileAt(x,y) != null) { // check if 'valid' tile
+                            if (typeof sublayer.tileAt(x,y).property("CDDA_ID_0") === "string") { // check if tile has cdda id
                                 let tile_cdda_id = sublayer.tileAt(x,y).property("CDDA_ID_0"); // get cdda id
-                                if(verbose){tiled.log(`${sublayer.name} - ( ${x}, ${y} ) has cdda id '${tile_cdda_id}'`);}
-                                if (assigned_symbols_dict.hasOwnProperty(tile_cdda_id)){ // check if symbol already found for cdda id
-                                    if(verbose){tiled.log(`${sublayer.name} - ( ${x}, ${y} ) '${tile_cdda_id}' already has symbol '${assigned_symbols_dict[tile_cdda_id]}'`);}
-                                    layer_map_array[y] = layer_map_array[y].slice(0,x)+assigned_symbols_dict[tile_cdda_id]+layer_map_array[y].slice(x+1);
-                                    continue;
+                                let thisxy = `[${x},${y}]`;
+                                if(!coordinate_assignments.hasOwnProperty(thisxy)){
+                                    coordinate_assignments[thisxy] = {};
                                 }
-                                // find cdda id in palette
-                                lookinpalettes:
-                                for(let palette of loaded_palettes){
-                                    if(verbose >= 2){tiled.log(`looking in palette '${palette.id}'`);}
-                                    if(palette.hasOwnProperty(sublayer.name)){
-                                        for(let symbol in palette[sublayer.property("cdda_layer")]){
-                                            if(verbose >= 2){tiled.log(`checking if symbol '${symbol}' matches '${tile_cdda_id}'`);}
-                                            
-                                            
-                                            if(palette[sublayer.property("cdda_layer")][symbol].hasOwnProperty("param")){ // is object
-                                                // if(verbose){tiled.log(`from param: ( ${x}, ${y} ) - '${palette_symbol_cdda_id}' > '${symbol}'`);}
-                                                if(palette[sublayer.property("cdda_layer")][symbol]["param"] == tile_cdda_id){
-                                                    
-                                                    if(verbose){tiled.log(`from param: ( ${x}, ${y} ) - '${palette[sublayer.property("cdda_layer")][symbol]["param"] }' > '${symbol}'`);}
-                                                    // <<<<< check if symbol exists to handle same assignments
-                                                    layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
-                                                    assigned_symbols_dict[tile_cdda_id] = symbol;
-                                                    if(!assigned_symbols.includes(symbol)){assigned_symbols.push(symbol);}
-                                                    continue xloop;
-                                                }
-                                            } else if(Array.isArray(palette[sublayer.property("cdda_layer")][symbol])){ // is array
-                                                for(let palette_symbol_cdda_id in palette[sublayer.property("cdda_layer")][symbol]){
-                                                    let cdda_id = sublayer.tileAt(x,y).property("CDDA_ID_0")
-                                                    if(palette[sublayer.property("cdda_layer")][symbol][palette_symbol_cdda_id] == sublayer.tileAt(x,y).property("CDDA_ID_0")){
-                                                        if(verbose){tiled.log(`from array: ( ${x}, ${y} ) - '${palette_symbol_cdda_id}' > '${symbol}'`);}
-                                                        // TODO check if symbol exists to handle same assignments
-                                                        layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
-                                                        assigned_symbols_dict[tile_cdda_id] = symbol;
-                                                        if(!assigned_symbols.includes(symbol)){assigned_symbols.push(symbol);}
-                                                        continue xloop;
-                                                    }
-                                                }
-                                            } else if(typeof palette[sublayer.property("cdda_layer")][symbol] === "string"){ // is array
-                                                if(palette[sublayer.property("cdda_layer")][symbol] == sublayer.tileAt(x,y).property("CDDA_ID_0")){ // is string
-                                                    if(verbose){tiled.log(`from string: ( ${x}, ${y} ) - '${sublayer.tileAt(x,y).property("CDDA_ID_0")}' > '${symbol}'`);}
-                                                    layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
-                                                    assigned_symbols_dict[tile_cdda_id] = symbol;
-                                                    if(!assigned_symbols.includes(symbol)){assigned_symbols.push(symbol);}
-                                                    continue xloop;
-                                                }
-                                            } else {
-                                                if(verbose >= 2){tiled.log(`( ${x}, ${y} ) - palette symbol '${symbol}' not used in map`);}
-                                                // assigned_symbols_dict[tile_cdda_id] = symbol;
-                                                // assigned_symbols.push(symbol)
-                                            }
-                                        }
-                                    }
-                                } // end palette lookup for symbol
-
-                                // custom assign symbol
-                                customsymbolloop:
-                                for(let symbol of possible_unicode_chars){
-                                    if(Object.values(assigned_symbols_dict).includes(symbol)){continue;}
-                                    if(assigned_symbols.includes(symbol)){continue;}
-                                    if(verbose){tiled.log(`( ${x}, ${y} ) - custom symbol '${symbol}' > ${sublayer.tileAt(x,y).property("CDDA_ID_0")}`);}
-                                    layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
-                                    json_objs[symbol] = tile_cdda_id
-                                    assigned_symbols_dict[tile_cdda_id] = symbol;
-                                    assigned_symbols.push(symbol)
-                                    continue xloop;
+                                if(!coordinate_assignments[thisxy].hasOwnProperty(sublayer.property("cdda_layer"))){
+                                    coordinate_assignments[thisxy][sublayer.property("cdda_layer")] = [];
                                 }
+                                coordinate_assignments[thisxy][sublayer.property("cdda_layer")].push(tile_cdda_id)
                             }
                         }
                     }
                 }
-                mapEntry.object.rows = layer_map_array
+            }
+        }
+        
+        for(let symbol of Object.values(combined_symbols_dict)){ // get palette symbols for exclusion
+            if(!assigned_symbols.includes(symbol)){assigned_symbols.push(symbol);}
+        }
+
+        tiled.log(`Layer dimensions: ${layer.layers}`)
+        if(verbose){tiled.log(`coordinate assignemnts:`);}
+        for (let ca in coordinate_assignments){
+            if(verbose){tiled.log(`${ca} > ${flattenDict(coordinate_assignments[ca])} (${Object.keys(coordinate_assignments[ca]).length})`);}
+
+        }
+        if(verbose){tiled.log(`combined symbols assignemnts:`);}
+        for (let s in combined_symbols_dict){
+            if(verbose){tiled.log(`${s} > ${combined_symbols_dict[s]} (${combined_symbols_dict[s].length})`);}
+
+        }
+        // assign symbols to coordinates on map
+        coordinate_entry_loop:
+        for(let coordinate of Object.keys(coordinate_assignments)){
+            let coordmatch = coordinate.match(/\[(\d+)\,(\d+)\]/)
+            let x = Number.parseInt(coordmatch[1],10)
+            let y = Number.parseInt(coordmatch[2],10)
+
+
+            for(let possible_symbol in combined_symbols_dict){ // assign palette symbols
+                if(verbose >= 3){tiled.log(`'${coordinate}' possible symbol '${possible_symbol}'`);}
+                if(combined_symbols_dict[possible_symbol].length == Object.keys(coordinate_assignments[coordinate]).length && 
+                    flattenDict(coordinate_assignments[coordinate]).every(r => flatten(combined_symbols_dict[possible_symbol]).includes(r))
+                    ){
+                    if(verbose ){tiled.log(`[${x},${y}] palette assign '${possible_symbol}' > '${flattenDict(coordinate_assignments[coordinate])}'`);}
+                    layer_map_array[y] = layer_map_array[y].slice(0,x)+possible_symbol+layer_map_array[y].slice(x+1)
+
+                        
+                    for(let entry of palette_objects_with_symbols){
+                        if(coordinate_assignments[coordinate].hasOwnProperty(entry)){
+                            coordinate_assignments[coordinate][entry]
+                        }
+                    }
+                    
+                    continue coordinate_entry_loop;
+                    // if(!assigned_symbols.includes(possible_symbol)){assigned_symbols.push(possible_symbol);} // get used symbols
+                } else { // no matches found in palette
+                    need_custom_assign[coordinate] = coordinate_assignments[coordinate] 
+                }
             }
 
-            if (sublayer.property("cdda_layer") == "terrain"){ mapEntry.object.terrain = json_objs; }
-            if (sublayer.property("cdda_layer") == "furniture"){ mapEntry.object.furniture = json_objs; }
-            
+            // custom symbols
+
+            // previously defined symbol
+            for(let object of palette_objects_with_symbols){
+            }
+            for(let symbol of Object.keys(custom_symbols_dict)){
+                if(
+                    Object.keys(custom_symbols_dict[symbol]).length == Object.keys(coordinate_assignments[coordinate]).length && 
+                    flattenDict(coordinate_assignments[coordinate]).every(r => flattenDict(custom_symbols_dict[symbol]).includes(r))
+                ){
+                    if(verbose){tiled.log(`[${x}, ${y}] - previously assigned '${symbol}' > '${flattenDict(coordinate_assignments[coordinate])}'`);}
+                    layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
+                    
+                    continue coordinate_entry_loop;
+            }
+            }
+            // newly defined symbol
+            for(let symbol of possible_unicode_chars){
+                if(assigned_symbols.includes(symbol)){continue;} else { assigned_symbols.push(symbol);}
+                if(verbose){tiled.log(`( ${x}, ${y} ) - newly assigned '${symbol}' > '${flattenDict(coordinate_assignments[coordinate])}'`);}
+                custom_symbols_dict[symbol] = coordinate_assignments[coordinate]
+                layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
+                for(let entry in coordinate_assignments[coordinate]){
+                    tiled.log("ENTRIES IN thisCoord")
+                    tiled.log(entry)
+                    let entry_ready = coordinate_assignments[coordinate][entry];
+                    if(Array.isArray(entry_ready) && entry_ready.length === 1){
+                        entry_ready = entry_ready[0]
+                    }
+                    if (entry == "terrain"){ mapEntry.object.terrain[symbol] = entry_ready; }
+                    if (entry == "furniture"){ mapEntry.object.furniture[symbol] = entry_ready; }
+                }
+                continue coordinate_entry_loop;
+            }
         }
+        tiled.log("complete symbol map")
+        for (let y = 0; y < layer_map_array.length; y++){
+            tiled.log(layer_map_array[y])
+            for (let x = 0; x < layer_map_array[y].length; x++){
+            }
+        }
+        mapEntry.object.rows = layer_map_array
+
         tiled.log("assigned symbols = "+assigned_symbols)
-        for (let d in mapEntry.object){
+        for (let d in mapEntry.object){ // cleanup empty 'objects'
             if (mapEntry.object[d] == "" || (typeof mapEntry.object[d] === "object" &&  Object.keys(mapEntry.object[d]).length === 0)){ delete mapEntry.object[d]; };
         };
         return mapEntry;
@@ -1144,7 +1198,7 @@ function prepareExportMap(map){
     
     // delete unused fields from map entry
     // tiled.log(mapEntries[0].object.rows[4])
-    return mapEntries;
+    return mapEntries.reverse();
 }
 
 var CDDAMapFormat = {
@@ -1152,7 +1206,7 @@ var CDDAMapFormat = {
     extension: "json",
 
     write: function(map, fileName) {
-        var m = prepareExportMap(map);
+        var m = exportMap(map);
 
         var file = new TextFile(fileName, TextFile.WriteOnly);
         file.write(JSON.stringify(m, null, 2));
@@ -1220,6 +1274,41 @@ function findTileInTilesets(){
     }
     tiled.log(`'${cdda_id_tofind}' not found.`)
 }
+
+
+function flattenDict(dict, result) {
+    if (typeof result === "undefined") {
+        result = [];
+    }
+    for (let i in dict) {
+        if ((dict[i].constructor == Object)) {
+            flattenDict(dict[i], result);
+        } else {
+            if (Array.isArray(dict[i])) {
+                let flat = flatten(dict[i])
+                for(var a = 0; a < flat.length; a++){
+                    result.push(flat[a]);
+                }
+            }
+        }
+    }
+    return result;
+}
+function flatten(arr, result) {
+    if (typeof result === "undefined") {
+        result = [];
+    }
+    for (var i = 0; i < arr.length; i++) {
+        if (Array.isArray(arr[i])) {
+            flatten(arr[i], result);
+        } else {
+            result.push(arr[i]);
+        }
+    }
+    return result;
+}
+
+
 class CDDAMapEntryImport {
     constructor(entry) {
         this.name = entry['om_terrain'];
@@ -1301,8 +1390,6 @@ class extensionConfig {
         this.pathToJSON = FileInfo.toNativeSeparators(this.pathToChosenTileset + "/tile_config.json");
     };
 };
-
-
 // tiled.log(tiled.actions)
 // tiled.trigger(tiled.actions)
 
@@ -1328,7 +1415,7 @@ const action_importMap = tiled.registerAction("CustomAction_importMap", function
 const action_exportMap = tiled.registerAction("CustomAction_CDDA_map_exportMap", function(action_exportMap) {
     tiled.log(`${action_exportMap.text} was run.`)
     initialize()
-    prepareExportMap()
+    exportMap()
 });
 //Find tile in tileset by CDDA ID
 const action_findTileInTilemap = tiled.registerAction("CustomAction_CDDA_map_findTileInTileset", function(action_findTileInTilemap) {
