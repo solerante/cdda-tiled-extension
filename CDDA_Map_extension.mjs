@@ -911,68 +911,6 @@ function makeEmptyMap(){
     tiled.open(filepath);
 }
 
-/* function getPaletteData(filepath){
-    // fill terrain
-    if (import_map.object.hasOwnProperty("fill_ter")){
-        if (tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"] == importMap.object.fill_ter){
-            if (verbose){tiled.log(`-${tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]} found in palette with fill tile '${importMap.object.fill_ter}' with local Tile ID ${tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"]}`)}
-            // tileDict["fill_ter"] = [tile_ID, filepath];
-            if (verbose){tiled.log(`Adding tileset ${filepath} to map.`);}
-                if ( !tilesetObjects.hasOwnProperty(tilesetname) ){
-                    tilesetObjects[tilesetname] = tiled.open(filepath)
-                }
-                tileDict["fill_ter"] = [tsxTiles.tiles[tsxTileID].properties["CDDA_ID_0"],tilesetObjects[tilesetname].findTile(tsxTileID), filepath]
-            if(!tilesetsToLoad.includes(filepath)){
-                tilesetsToLoad.push(filepath);
-            };
-            return;
-        };
-    };
-    // other terrain and furniture and entities
-    for ( let entry in tsxTiles.tiles[tsxTileID].properties ){
-        let cdda_ID = tsxTiles.tiles[tsxTileID].properties[entry];
-        let tile_ID = tsxTileID;
-        for (let mapLayerType of mapLayerTypes){
-            if (Object.values(mapPalette[mapLayerType]).includes(cdda_ID)){
-                if (verbose){tiled.log(`-'${cdda_ID}'' found in tileset file with local Tile ID '${tile_ID}'`);}
-                
-                if ( !tilesetObjects.hasOwnProperty(tilesetname) ){
-                    tilesetObjects[tilesetname] = tiled.open(filepath)
-                }
-
-                tileDict[cdda_ID] = [tile_ID,tilesetObjects[tilesetname].findTile(tsxTileID), filepath]
-                if(!tilesetsToLoad.includes(filepath)){
-                    if (verbose){tiled.log(`Adding tileset ${filepath} to map.`);}
-                    tilesetsToLoad.push(filepath)
-                }
-            }
-        }
-        //entities
-        for (let entityLayerType of entityLayerTypes){
-            if(verbose >=2){tiled.log(`trying layer ${entityLayerType}`);}
-            if(mapArrays.hasOwnProperty(entityLayerType)){
-                if(verbose >=3){tiled.log(`looking in layer ${entityLayerType}`);}
-                for (let entry in mapArrays[entityLayerType]){
-                    if (verbose >= 3){tiled.log(`searching for '${cdda_ID} for layer '${entityLayerType}' in '${filepath}'`);}
-                    if(mapArrays[entityLayerType][entry][2] == cdda_ID){
-                        if (verbose){tiled.log(`-'${cdda_ID}' found in tileset file with local Tile ID '${tile_ID}'`);}
-
-                        if ( !tilesetObjects.hasOwnProperty(tilesetname) ){
-                            tilesetObjects[tilesetname] = tiled.open(filepath)
-                        }
-
-                        mapArrays[entityLayerType][entry][2] = tilesetObjects[tilesetname].findTile(tsxTileID);
-                        if(!tilesetsToLoad.includes(filepath)){
-                        if (verbose){tiled.log(`Adding tileset ${filepath} to map.`);}
-                            tilesetsToLoad.push(filepath)
-                        }
-                    }
-                }
-            }
-        }
-    }
-} */
-
 function exportMap(map){
     initialize();
     // tiled.log(tiled.openAssets)
@@ -1098,7 +1036,7 @@ function exportMap(map){
             }
         }
         
-        for(let symbol of Object.values(combined_symbols_dict)){ // get palette symbols for exclusion
+        for(let symbol in combined_symbols_dict){ // get palette symbols for exclusion
             if(!assigned_symbols.includes(symbol)){assigned_symbols.push(symbol);}
         }
 
