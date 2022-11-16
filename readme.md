@@ -47,7 +47,7 @@ What kind of works
   - Maps missing some definitions (results in empty tiles).
   - Some items and entities are imported when not using relative definitions.
 - Export CDDA map
-  - Can sometimes export a file that loads in CDDA.
+  - Can export a file that might loads in CDDA.
   - Currently only exports terrain and furniture.
 - Remember settings
   - Could be less annoying. But it isn't.
