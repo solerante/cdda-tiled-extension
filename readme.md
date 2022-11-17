@@ -6,6 +6,7 @@ Add the extension and extras folder to your [Tiled](https://www.mapeditor.org/) 
 The 'extras' folder contains png images for the extension tileset. This adds relative tiles like region groundcover.
 
 =======
+![tiledcddaextension](https://user-images.githubusercontent.com/30750303/202532520-69f460d4-2f5e-49c0-b3e7-46e10fc9637e.gif)
 
 ![tiled_screenshot](https://user-images.githubusercontent.com/30750303/199577624-fcc35ebf-7ec3-4617-9c5e-3c670f156607.png)
 
