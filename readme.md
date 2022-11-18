@@ -31,9 +31,13 @@ Export the current map as a json for CDDA.
 - Furniture and Terrain (items, monsters, and other entities not quite)
 - Map must be open in Tiled
 
-### Tileset > Find CDDA Tile
+### Tileset > Find CDDA Tile (ctrl+shift+f)
 
-Displays the tile number and tileset file of searched CDDA id, such as "t_floor".
+Jump to tile with CDDA id, such as "t_floor".
+
+### Tileset > Add Sprite to Favorites (ctrl+shift+d)
+
+Add sprite to 'Favorites' sprite sheet for easy access.
 
 =======
 
