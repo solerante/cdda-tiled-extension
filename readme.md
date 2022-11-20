@@ -39,6 +39,10 @@ Jump to tile with CDDA id, such as "t_floor".
 
 Add sprite to 'Favorites' sprite sheet for easy access.
 
+### File > Change Project Path
+
+Change path to project as seen by CDDA extension (project path is not yet accessible to API)
+
 =======
 
 What works
@@ -55,4 +59,4 @@ What kind of works
   - Can export a file that might load in CDDA.
   - Currently only exports terrain and furniture.
 - Remember settings
-  - Could be less annoying. But it isn't.
+  - Slightly less annoying. 
