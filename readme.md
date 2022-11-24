@@ -47,16 +47,21 @@ Change path to project as seen by CDDA extension (project path is not yet access
 
 What works
 
-- nothing
+- Import CDDA Tilesets
+  - Chosen tileset is imported and each matching cdda id has a unique tile for easy stamping.
+  - Find tile by its cdda id with 'ctrl+f'.
+  - Save a copy of the tile to a 'favorites' tileset for easy access.
 
 What kind of works
 
-- Import CDDA Tilesets
-- Import CDDA map
+- Import and Export CDDA map
   - Maps missing some definitions (results in empty tiles).
-  - Some items and entities are imported when not using relative definitions.
-- Export CDDA map
-  - Can export a file that might load in CDDA.
-  - Currently only exports terrain and furniture.
-- Remember settings
-  - Slightly less annoying. 
+  - Export a file that might load in CDDA.
+  - Handles `{ object : { place_[object type] : {} } }` alright.
+  - Missing `{ object : { items : {} } }`.
+  - Missing `{ object : { toilets : {} } }`.
+  - Missing `{ object : { vendingmachines : {} } }`.
+  - Missing `{ object : { toilets : {} } }`.
+  - Missing `{ object : { vehicles : {} } }`.
+  - Missing `{ object : { NPC : {} } }`.
+  - Missing `{ object : { zones : {} } }`.
