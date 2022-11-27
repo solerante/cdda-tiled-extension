@@ -13,8 +13,17 @@ const configfilename = "tiled_cdda_extension_config.json";
 const mapLayerTypes = ["terrain","furniture","traps","vehicles","items"]
 const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields"]
 const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN","ALLOW_TERRAIN_UNDER_OTHER_DATA","NO_UNDERLYING_ROTATE","AVOID_CREATURES"]
-const possible_unicode_chars = "#$%&'()*+,-.0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_`abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¸¹º»¼½¾¿"
-const possible_unicode_chars_ramp = `$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,^'.`
+const utf_ramps = {
+    "utf8_shortlist" : `#$%&'()*+,-.0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¸¹º»¼½¾¿`,
+    "greyscale_ramp" : `$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,^'.`,
+    "specific" : {
+        "wall" : `$@B%8&WM#/|(){}[]!I`,
+        "pavement" : `'^,:;_-+`,
+        "sidewalk" : `'^,:;_-+`,
+        "floor" : `'^,:;_-+`,
+        "water" : `~`
+    }
+}
 const no_id_objects = ["rows","palettes","fill_ter","//","id","type"]
 
 var skipOverwrite = true;
@@ -1562,13 +1571,15 @@ function exportMap(map){
             }
             }
             // newly defined symbol
-            let symbolstouse = possible_unicode_chars
-            if(cte.flattenDict(coordinate_assignments[coordinate]).join("").match(/(wall)/)){
-                symbolstouse = possible_unicode_chars_ramp.concat(possible_unicode_chars)
+            let symbolstouse = ""
+            let cdda_ids_in_tile = cte.flattenDict(coordinate_assignments[coordinate])
+            for(let searchTerm in utf_ramps.specific){
+                let re = new RegExp(`(${searchTerm})`)
+                if(cdda_ids_in_tile.join("").match(re)){
+                    symbolstouse = utf_ramps.specific[searchTerm]
+                }
             }
-            if(cte.flattenDict(coordinate_assignments[coordinate]).join("").match(/(floor)/)){
-                symbolstouse = possible_unicode_chars_ramp.split("").reverse().join("").concat(possible_unicode_chars)
-            }
+            symbolstouse += utf_ramps.utf8_shortlist
             for(let symbol of symbolstouse){
                 if(assigned_symbols.includes(symbol)){continue;} else { assigned_symbols.push(symbol);}
                 if(verbose){tiled.log(`( ${x}, ${y} ) - newly assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
@@ -1885,6 +1896,7 @@ action_cdda_debug.text = "run associated debug action"
 action_cdda_debug.shortcut = "CTRL+D"
 
 //tiled.log(tiled.menus)
+tiled.registerMapFormat("CDDAmap", CDDAMapFormat)
 tiled.extendMenu("File", [
     { separator: true },
     { action: "CustomAction_importTileset", before: "Close" },
@@ -1893,7 +1905,6 @@ tiled.extendMenu("File", [
     { action: "CustomAction_changeProjectPath", before: "Close" },
     { separator: true }
 ]);
-tiled.registerMapFormat("CDDAmap", CDDAMapFormat)
 tiled.extendMenu("Map", [
     { separator: true },
     { action: "CustomAction_newCDDAGroupLayer", after: "Terrain Sets" },
