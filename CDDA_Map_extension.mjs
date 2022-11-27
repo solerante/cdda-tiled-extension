@@ -14,14 +14,27 @@ const mapLayerTypes = ["terrain","furniture","traps","vehicles","items"]
 const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields"]
 const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN","ALLOW_TERRAIN_UNDER_OTHER_DATA","NO_UNDERLYING_ROTATE","AVOID_CREATURES"]
 const utf_ramps = {
-    "utf8_shortlist" : `#$%&'()*+,-.0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¸¹º»¼½¾¿`,
+    "utf8_shortlist" : `#$%&'()*+,-.:;<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¸¹º»¼½¾¿0123456789`,
     "greyscale_ramp" : `$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,^'.`,
     "specific" : {
-        "wall" : `$@B%8&WM#/|(){}[]!I`,
+        "t_soil" : `░`,
+        "wall" : `▓▒░$@B%&WM#/|(){}[]!I`,
+        "fence" : `‡ǂ#H`,
+        "door" : `◘D`,
+        "window" : `o◦`,
         "pavement" : `'^,:;_-+`,
         "sidewalk" : `'^,:;_-+`,
         "floor" : `'^,:;_-+`,
-        "water" : `~`
+        "_up" : `<Λ↑⇑⇡⇧`,
+        "_down" : `>V↓⇓⇣⇩`,
+        "ladder" : `ʭΞ`,
+        "water" : `~≈w`,
+        "box" : `□▫`,
+        "sandbag" : `■▪`,
+        "trap" : `*ϗ`,
+        "teleport" : `◌●◙`,
+        "table" : `πΠ`,
+        "chair" : `h`
     }
 }
 const no_id_objects = ["rows","palettes","fill_ter","//","id","type"]
