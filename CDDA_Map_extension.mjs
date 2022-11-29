@@ -14,7 +14,7 @@ const mapLayerTypes = ["terrain","furniture","traps","vehicles","items"]
 const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields"]
 const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN","ALLOW_TERRAIN_UNDER_OTHER_DATA","NO_UNDERLYING_ROTATE","AVOID_CREATURES"]
 const utf_ramps = {
-    "utf8_shortlist" : `#$%&'()*+,-.:;<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¸¹º»¼½¾¿0123456789`,
+    "utf8_shortlist" : `#$%&'()*+,-.:;<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¹º»¼½¾¿0123456789`,
     "greyscale_ramp" : `$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,^'.`,
     "specific" : {
         "t_soil" : `░`,
@@ -29,12 +29,13 @@ const utf_ramps = {
         "_down" : `>V↓⇓⇣⇩`,
         "ladder" : `ʭΞ`,
         "water" : `~≈w`,
-        "box" : `□▫`,
-        "sandbag" : `■▪`,
-        "trap" : `*ϗ`,
-        "teleport" : `◌●◙`,
+        "box" : `□▫⬞`,
+        "sandbag" : `⬝▪■`,
+        "trap" : `♣♠♦*ϗ`,
+        "telep" : `◌●◙`,
         "table" : `πΠ`,
-        "chair" : `h`
+        "chair" : `h`,
+        "others" : `⧫ᒤᒦᒌᕈҐᖗᖙᖘᖚ⅄♪♫ʬ♥♣♠♦`
     }
 }
 const no_id_objects = ["rows","palettes","fill_ter","//","id","type"]
@@ -759,7 +760,66 @@ function buildTilePaletteDict(import_map){
     return mapPalette;
 }
 
-function importMap(pathToMap){
+function importMapChoiceDialog(filepath){
+    let f = new TextFile(filepath, TextFile.ReadOnly);
+    f.codec = "UTF-8"
+    let c = f.readAll();
+    f.close();
+    let j = JSON.parse(c);
+    
+    let dialog = new Dialog()
+    dialog.windowTitle = `Select Maps to Import`
+    dialog.addLabel(`Select maps (om_terains) to import from map file '${FileInfo.fileName(filepath)}'.
+Maps with different sizes will all import with largest size.
+MouseOver tooltips not formatted - for preview only.`,true)
+    dialog.addNewRow()
+    dialog.addSeparator(`Maps`)
+    let mapEntriesToImport = {}
+    for(let i in j){
+        if(j[i].type != "mapgen" || j[i].method != "json"){continue;}
+        if(j[i].object.rows.length < 1){continue;}
+        let checkboxdisplay = `${j[i].om_terrain}`.length < 63 ? j[i].om_terrain : `${j[i].om_terrain}`.slice(0,60)+"..."
+        let checkbox = dialog.addCheckBox(`'${checkboxdisplay}' (${j[i].object.rows[0].length}x${j[i].object.rows.length})`,true)
+        let tooltiptext = JSON.stringify(j[i].object.rows).replace(/,/g,"\n").replace(/[\[\]]/g,"")
+        checkbox.toolTip = tooltiptext
+
+        mapEntriesToImport[j[i].om_terrain] = {
+            "index" : i,
+            "checkbox" : checkbox,
+            "entry" : j[i]
+        }
+        // mapEntriesToImport.push(entry)
+        dialog.addNewRow()
+    }
+    let backButton = dialog.addButton(`Back`);
+    backButton.clicked.connect(function(){
+        cte.filePicker(importMapChoiceDialog,filepath)
+        dialog.reject();
+    })
+    
+    let acceptButton = dialog.addButton(`Accept`);
+    let cancelButton = dialog.addButton(`Cancel`);
+    acceptButton.clicked.connect(function(){
+        dialog.accept();
+    })
+    cancelButton.clicked.connect(function(){
+        dialog.reject();
+    })
+    dialog.accepted.connect(()=>{
+        let testentries = []
+        let chosenEntries = []
+        for(let entry in mapEntriesToImport){
+            // tiled.log(mapEntriesToImport[entry].checkbox.checked)
+            if(mapEntriesToImport[entry].checkbox.checked){
+                chosenEntries.push(mapEntriesToImport[entry].entry)
+                testentries.push(mapEntriesToImport[entry].index)
+            }
+        }
+        importMap(filepath,chosenEntries)
+    })
+    dialog.show()
+}
+function importMap(pathToMap,j){
     // if(!pathToMap){
     //     pathToMap = FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json")
     // }
@@ -773,7 +833,7 @@ function importMap(pathToMap){
     f.codec = "UTF-8"
     let c = f.readAll();
     f.close();
-    let j = JSON.parse(c);
+    let old_j = JSON.parse(c);
     let tm;
     let mapwidth = 0
     let mapheight = 0
@@ -1853,8 +1913,8 @@ const action_importMap = tiled.registerAction("CustomAction_importMap", function
     tiled.log(`${action_importMap.text} was run.`)
     initialize()
     if(config.pathToLastImportMap == undefined){config.pathToLastImportMap = FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json")}
-    cte.filePicker(importMap,config.pathToLastImportMap)
-    // importMap()
+    // cte.filePicker(importMap,config.pathToLastImportMap)
+    cte.filePicker(importMapChoiceDialog,config.pathToLastImportMap)
 });
 //Export CDDA Map
 const action_exportMap = tiled.registerAction("CustomAction_CDDA_map_exportMap", function(action_exportMap) {
@@ -1884,9 +1944,9 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     // tiled.log(tiled.actions)
     // tiled.trigger("CustomAction_CDDA_add_sprite_to_favotires")
     initialize()
-    let filepath = config.pathToProject
+    let filepath = config.pathToTMX
     // let dialog = new Dialog()
-    filepath = cte.filePicker(filepath)
+    filepath = cte.filePicker(importMapChoiceDialog,filepath)
     // filepath = filePicker(filepath)
     // cte.filePicker(filepath);
     // dialog.show();
