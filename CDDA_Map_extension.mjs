@@ -350,7 +350,7 @@ function add_cdda_id_to_unknowns(cdda_id){
 // meta tileset
 function generateMetaTileset(){
     // File.exists(FileInfo.toNativeSeparators(tiled.extensionsPath+"/cdda_map_extension_extras"))
-    if(!config.hasOwnProperty(pathToExtras)){return tiled.log(`Path to Extras not defined`)}
+    if(!config.hasOwnProperty("pathToExtras")){return tiled.log(`Path to Extras not defined`)}
     if(!File.exists(config.pathToExtras)){tiled.makePath(config.pathToExtras);}
     if( File.exists(config.pathToExtras) ){
         let tilesetname = "cdda_ext_custom_tileset"
@@ -816,6 +816,7 @@ function buildTilePaletteDict(import_map){
 }
 
 function importMapChoiceDialog(filepath){
+    if([`linux`,`unix`,`macos`].includes(tiled.platform)){if(verbose >=1){tiled.log(`nix system`);};filepath = `/${filepath}`;}
     let f = new TextFile(filepath, TextFile.ReadOnly);
     f.codec = "UTF-8"
     let c = f.readAll();
