@@ -50,7 +50,7 @@ const cte = { // helper functions
     filePicker: function filePicker(func,filepath){
         let dialog = new Dialog()
         // if(dialog===undefined){dialog = new Dialog();}
-        filepath == undefined ? filepath = FileInfo.fromNativeSeparators(config.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath)
+        filepath == undefined ? filepath = FileInfo.fromNativeSeparators(mainconfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath)
         let newFilepath;
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
@@ -191,11 +191,14 @@ const cte = { // helper functions
 function initialize(){
     if( !File.exists(pathToMainConfig)){
         mainConfig = { "pathToProject" : "~/cdda_tiled_project" }
-        let dialog = cte.filePicker(prepareMainConfig,mainConfig.pathToProject)
-        dialog.rejected.connect(function(){ return false;})
-        dialog.accepted.connect(function(){
-            return true
-        })
+        // let pathToProject = FileInfo.toNativeSeparators(FileInfo.path(tiled.prompt("Path to tiled project folder:",mainConfig.pathToProject,"project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder)))
+        prepareMainConfig(mainConfig.pathToProject)
+        loadMainConfig()
+        // let dialog = cte.filePicker(prepareMainConfig,mainConfig.pathToProject)
+        // dialog.rejected.connect(function(){ return false;})
+        // dialog.accepted.connect(function(){
+        //     return true
+        // })
     } else {
         loadMainConfig()
         return true
@@ -211,7 +214,9 @@ function initialize(){
     }
     function loadMainConfig(){
         mainConfig = readJSONFile(pathToMainConfig)
-    
+        if(mainConfig.pathToProject.match(/\.json$/)){
+            mainConfig.pathToProject = FileInfo.path(mainConfig.pathToProject)
+        }
         var pathToConfig = FileInfo.toNativeSeparators(mainConfig.pathToProject+"/"+configfilename)
         if( !File.exists(mainConfig.pathToProject)){File.makePath(mainConfig.pathToProject);}
     
@@ -219,6 +224,7 @@ function initialize(){
             tiled.log(`no config file found at ${pathToConfig}. Making new config file.`) 
             let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
             config = new extensionConfig(mainConfig.pathToProject,givenPathToCDDA);
+            // config.pathToExtras = pathToExtras;
             cte.updateConfig()
         } else {
             if(verbose >= 2){tiled.log(`config file found at ${pathToConfig}`);}
@@ -233,6 +239,7 @@ function initialize(){
 function changeProjectPath(){
     var loggedPathToProject = mainConfig.pathToProject
     var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:",loggedPathToProject,"Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+    if (pathToProject.match(/\.tiled-project$/)){pathToProject = FileInfo.path(pathToProject)}
     if(!pathToProject){return false;}
     if(pathToProject && pathToProject != loggedPathToProject){
         mainConfig.pathToProject = pathToProject;
@@ -295,62 +302,55 @@ function addSpriteToFavotires(){
     tiled.open(originalAsset.fileName)
 }
 function add_cdda_id_to_unknowns(cdda_id){
-    let originalAsset = tiled.open(config.pathToCustomTileset)
-    for(let tile of originalAsset.tiles){
-
+    let customTiles = tiled.open(config.pathToCustomTileset)
+    // let customTilesData = TSXread(config.pathToCustomTileset)
+    let unknown_tile;
+    for(let tile of customTiles.tiles){
+        if(tile.property("cdda_id") == "unknown_tile"){
+            unknown_tile = tile
+            break
+        }
     }
-    let tileset;
-    let tiles;
-    if(tiled.activeAsset.isTileset){
-        if(verbose >= 1){tiled.log(`asset is tileset`)}
-        tileset = tiled.activeAsset;
-        tiles = tiled.activeAsset.selectedTiles;
-    }
-    if(tiled.activeAsset.isTileMap){
-        if(verbose >= 1){tiled.log(`asset is tilemap`)}
-        tileset = tiled.mapEditor.tilesetsView.currentTileset;
-        tiles = tiled.mapEditor.tilesetsView.selectedTiles;
-    }
-    if(tiles.length < 1){ return tiled.log(`No tiles selected.`)}
-    let pathToFavoriteImages = FileInfo.toNativeSeparators(FileInfo.path(config.pathToFavoritesTSX)+"/images");
-    if(!File.exists(FileInfo.path(config.pathToFavoritesTSX))){File.makePath(FileInfo.path(config.pathToFavoritesTSX));};
-    if(!File.exists(pathToFavoriteImages)){File.makePath(pathToFavoriteImages);};
+    let pathToUnknownTileImage = unknown_tile.imageFileName
+    tiled.close(customTiles)
     
-    let favorites;
-    if(!File.exists(config.pathToFavoritesTSX)){
-        favorites = new Tileset("Favorites");
-        tiled.tilesetFormat("tsx").write(favorites,config.pathToFavoritesTSX);
+    let unknowns;
+    if(!config.hasOwnProperty(pathToUnknownsTSX)){
+        config.pathToUnknownsTSX = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+"/unknown_tiles.tsx")
+    }
+    if(!File.exists(config.pathToUnknownsTSX)){
+        unknowns = new Tileset("Unknown Tiles");
+        tiled.tilesetFormat("tsx").write(favorites,config.pathToUnknownsTSX);
     }
     for(let asset of tiled.openAssets){
-        if(asset.fileName == config.pathToFavoritesTSX){
+        if(asset.fileName == config.pathToUnknownsTSX){
             favorites = asset
             break
         }
     }
-    if(favorites === undefined){
-        favorites = tiled.open(config.pathToFavoritesTSX);
+    if(unknowns === undefined){
+        unknowns = tiled.open(config.pathToUnknownsTSX);
     }
 
-    for(let tile of tiles){
-        let pathToImage = FileInfo.toNativeSeparators(`${pathToFavoriteImages}/${tile.property(`cdda_id`)}.png`)
-        let [x,y] = cte.getTileXY(tile)
-        let croppedImage = cte.cropImage(tileset.image,x,y);
-        croppedImage.save(pathToImage);
-        let img = new Image(pathToImage);
-        let croppedImageTile = favorites.addTile()
-        croppedImageTile.setProperty("cdda_id",tile.property(`cdda_id`))
-        croppedImageTile.setImage(img)
-        tiled.log(`'${tile.property(`cdda_id`)}' added to favorites.`)
+    if(!imageCache.hasOwnProperty(`unknown_tile_image`)){
+        imageCache.unknown_tile_image = new Image(pathToUnknownTileImage);
     }
-    // tiled.log(tiled.activeAsset.selectedTiles)
-    tiled.tilesetFormat("tsx").write(favorites,config.pathToFavoritesTSX);
-    tiled.reload(tiled.activeAsset)
-    tiled.open(originalAsset.fileName)
+    let img = imageCache.unknown_tile_image
+
+    let newUnknownTile = unknowns.addTile()
+    newUnknownTile.setProperty("cdda_id",cdda_id)
+    newUnknownTile.setImage(img)
+    if(verbose >= 1){tiled.log(`'${tile.property(`cdda_id`)}' added to unknowns.`)}
+
+    tiled.tilesetFormat("tsx").write(unknowns,config.pathToUnknownsTSX);
+    // tiled.close(unknowns)
+    return newUnknownTile
 }
 
 // meta tileset
 function generateMetaTileset(){
     // File.exists(FileInfo.toNativeSeparators(tiled.extensionsPath+"/cdda_map_extension_extras"))
+    if(!config.hasOwnProperty(pathToExtras)){return tiled.log(`Path to Extras not defined`)}
     if(!File.exists(config.pathToExtras)){tiled.makePath(config.pathToExtras);}
     if( File.exists(config.pathToExtras) ){
         let tilesetname = "cdda_ext_custom_tileset"
@@ -408,12 +408,14 @@ function getRecursiveFilePathsInFolder(targetPath){
 
 function importTilesets(){
     
-    config.pathToChosenTileset = FileInfo.toNativeSeparators(tiled.prompt("Path to Tileset folder:",config.pathToChosenTileset,"Tileset Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+    config.pathToChosenTileset = FileInfo.toNativeSeparators(tiled.prompt("Path to Folder of Tileset to import:",config.pathToChosenTileset,"Tileset Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
     if(!config.pathToChosenTileset){return tiled.log("Action cancelled.")}
+    if(config.pathToChosenTileset.match(/\.json$/)){config.pathToChosenTileset = FileInfo.path(config.pathToChosenTileset)}
+    
     config.chosenTileset = config.pathToChosenTileset.match(/(?:\/|\\|\\\\)(?:(\.?.+$)|(?:(\.?.+)(?:\/|\\|\\\\).+\..+))/)[1]
     config.pathToJSON = FileInfo.toNativeSeparators(config.pathToChosenTileset + "/tile_config.json");
     
-    config.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(config.pathToProject + "/tsx/"+FileInfo.baseName(config.chosenTileset))
+    config.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(mainConfig.pathToProject + "/tsx/"+FileInfo.baseName(config.chosenTileset))
     if( !File.exists(config.pathToChosenTilesetTSX) ){File.makePath(config.pathToChosenTilesetTSX);}
     
     cte.updateConfig();
@@ -528,10 +530,10 @@ function importTilesets(){
                                 let croppedImage = cte.cropImage(currentTile.asset.image,x,y);
                                 croppedImage.save(pathToThisDupeImage);
                             }
-                            if(cte.flattenDict(TSXread(config.pathToFavoritesTSX)).includes(tile.id[n])){
-                                tiled.log(`!!!gotem`)
-                                continue;
-                            }
+                            // if(cte.flattenDict(TSXread(config.pathToFavoritesTSX)).includes(tile.id[n])){
+                            //     tiled.log(`!!!gotem`)
+                            //     continue;
+                            // }
                             let tileImg = new Image(pathToThisDupeImage);
                             let croppedImageTile = dupe_tileset.addTile()
                             croppedImageTile.setProperty("cdda_id",tile.id[n])
@@ -560,10 +562,10 @@ function importTilesets(){
                             croppedImage.save(pathToThisDupeImage);
                             croppedImage = undefined;
                         }
-                        if(cte.flattenDict(TSXread(config.pathToFavoritesTSX)).includes(tile.id)){
-                            tiled.log(`!!!gotem`)
-                            continue;
-                        }
+                        // if(cte.flattenDict(TSXread(config.pathToFavoritesTSX)).includes(tile.id)){
+                        //     tiled.log(`!!!gotem`)
+                        //     continue;
+                        // }
                         let tileImg = new Image(pathToThisDupeImage);
                         let croppedImageTile = dupe_tileset.addTile()
                         croppedImageTile.setProperty("cdda_id",tile.id)
@@ -822,7 +824,7 @@ function importMapChoiceDialog(filepath){
     
     let dialog = new Dialog()
     dialog.windowTitle = `Select Maps to Import`
-    dialog.addLabel(`Select maps (om_terains) to import from map file '${FileInfo.fileName(filepath)}'.
+    dialog.addLabel(`Select maps (om_terains) to import from map file '${FileInfo.fileName(filepath)}'.\n
 Maps with different sizes will all import with largest size.
 MouseOver tooltips not formatted - for preview only.`,true)
     dialog.addNewRow()
@@ -830,6 +832,7 @@ MouseOver tooltips not formatted - for preview only.`,true)
     let mapEntriesToImport = {}
     for(let i in j){
         if(j[i].type != "mapgen" || j[i].method != "json"){continue;}
+        if(!j[i].object.hasOwnProperty(`rows`)){continue;} // TODO #81 import maps with 'mapgensize' instead of 'rows'
         if(j[i].object.rows.length < 1){continue;}
         let checkboxdisplay = `${j[i].om_terrain}`.length < 63 ? j[i].om_terrain : `${j[i].om_terrain}`.slice(0,60)+"..."
         let checkbox = dialog.addCheckBox(`'${checkboxdisplay}' (${j[i].object.rows[0].length}x${j[i].object.rows.length})`,true)
@@ -1048,7 +1051,9 @@ function importMap(pathToMap,j){
 
         // get tile locations known for cdda ids in map
         let tsxs = getRecursiveFilePathsInFolder(config.pathToChosenTilesetTSX);
-        tsxs.push(config.pathToCustomTileset) // add custom tsx to the mix
+        if(config.hasOwnProperty(`pathToUnknownsTSX`)){tsxs.push(config.pathToUnknownsTSX)} // add custom tsx to the mix
+        if(config.hasOwnProperty(`pathToCustomTileset`)){tsxs.push(config.pathToCustomTileset)} // add custom tsx to the mix
+        
         for(let filepath of tsxs){
             if (!filepath.match(/\.tsx$/)){continue;};
 
@@ -1224,7 +1229,8 @@ function importMap(pathToMap,j){
                         continue;
                     }
                     if(all_tileDict.hasOwnProperty("unknown_tile")){
-                        newcell = all_tileDict.unknown_tile.tile
+                        // all_tileDict.unknown_tile.tile = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
+                        newcell = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
                         tMapArray.push([x,y,newcell])
                         continue;
                     }
@@ -2001,7 +2007,7 @@ const action_add_sprite_to_favotires = tiled.registerAction("CustomAction_CDDA_a
 //change path to project
 const action_changeProjectPath = tiled.registerAction("CustomAction_changeProjectPath", function(action_changeProjectPath) {
     tiled.log(`${action_changeProjectPath.text} was run.`)
-    initialize() ? changeProjectPath() : tiled.log("Action aborted.")
+    changeProjectPath()
 });
 //test action for debug
 const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", function(action_cdda_debug) {
