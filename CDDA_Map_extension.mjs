@@ -294,6 +294,59 @@ function addSpriteToFavotires(){
     tiled.reload(tiled.activeAsset)
     tiled.open(originalAsset.fileName)
 }
+function add_cdda_id_to_unknowns(cdda_id){
+    let originalAsset = tiled.open(config.pathToCustomTileset)
+    for(let tile of originalAsset.tiles){
+
+    }
+    let tileset;
+    let tiles;
+    if(tiled.activeAsset.isTileset){
+        if(verbose >= 1){tiled.log(`asset is tileset`)}
+        tileset = tiled.activeAsset;
+        tiles = tiled.activeAsset.selectedTiles;
+    }
+    if(tiled.activeAsset.isTileMap){
+        if(verbose >= 1){tiled.log(`asset is tilemap`)}
+        tileset = tiled.mapEditor.tilesetsView.currentTileset;
+        tiles = tiled.mapEditor.tilesetsView.selectedTiles;
+    }
+    if(tiles.length < 1){ return tiled.log(`No tiles selected.`)}
+    let pathToFavoriteImages = FileInfo.toNativeSeparators(FileInfo.path(config.pathToFavoritesTSX)+"/images");
+    if(!File.exists(FileInfo.path(config.pathToFavoritesTSX))){File.makePath(FileInfo.path(config.pathToFavoritesTSX));};
+    if(!File.exists(pathToFavoriteImages)){File.makePath(pathToFavoriteImages);};
+    
+    let favorites;
+    if(!File.exists(config.pathToFavoritesTSX)){
+        favorites = new Tileset("Favorites");
+        tiled.tilesetFormat("tsx").write(favorites,config.pathToFavoritesTSX);
+    }
+    for(let asset of tiled.openAssets){
+        if(asset.fileName == config.pathToFavoritesTSX){
+            favorites = asset
+            break
+        }
+    }
+    if(favorites === undefined){
+        favorites = tiled.open(config.pathToFavoritesTSX);
+    }
+
+    for(let tile of tiles){
+        let pathToImage = FileInfo.toNativeSeparators(`${pathToFavoriteImages}/${tile.property(`cdda_id`)}.png`)
+        let [x,y] = cte.getTileXY(tile)
+        let croppedImage = cte.cropImage(tileset.image,x,y);
+        croppedImage.save(pathToImage);
+        let img = new Image(pathToImage);
+        let croppedImageTile = favorites.addTile()
+        croppedImageTile.setProperty("cdda_id",tile.property(`cdda_id`))
+        croppedImageTile.setImage(img)
+        tiled.log(`'${tile.property(`cdda_id`)}' added to favorites.`)
+    }
+    // tiled.log(tiled.activeAsset.selectedTiles)
+    tiled.tilesetFormat("tsx").write(favorites,config.pathToFavoritesTSX);
+    tiled.reload(tiled.activeAsset)
+    tiled.open(originalAsset.fileName)
+}
 
 // meta tileset
 function generateMetaTileset(){
@@ -891,7 +944,8 @@ function importMap(pathToMap,j){
 
         // make dict of all tiles
         let all_tileDict = {}
-        all_tileDict.unknown = {}
+        // all_tileDict.unknown = {}
+        all_tileDict.unknown_tile = {}
         all_tileDict = fillTileDict(import_map.object,all_tileDict)
         let mapPalettes = getPalettesJSON(import_map.object)
         for(let palette in mapPalettes){
@@ -1004,6 +1058,12 @@ function importMap(pathToMap,j){
             for ( let tsxTileID in tsxTiles.tiles ){
                 if (!tsxTiles.tiles[tsxTileID].properties["cdda_id"]){continue;}; // continue if no cdda id
                 let tile_cdda_id = tsxTiles.tiles[tsxTileID].properties.cdda_id
+                if(tile_cdda_id == "unknown_tile"){
+                    all_tileDict[tile_cdda_id].id = tsxTileID
+                    all_tileDict[tile_cdda_id].filepath = filepath
+                    if(verbose >= 1){tiled.log(`adding '${tile_cdda_id}' with id '${all_tileDict[tile_cdda_id].id}'to all_tileDict`)}
+                    continue
+                }
                 if(all_tileDict.hasOwnProperty(tile_cdda_id)){
                     if(all_tileDict[tile_cdda_id].hasOwnProperty("id")){continue;}
                     all_tileDict[tile_cdda_id].id = tsxTileID
@@ -1019,7 +1079,6 @@ function importMap(pathToMap,j){
         // get tile numbers, cdda IDs, and tilset file ??
         let entityEntries = {};
         let mapArrays = {};
-
 
 
         // get tiles
@@ -1162,6 +1221,12 @@ function importMap(pathToMap,j){
                         }
                         if(verbose >= 2){tiled.log(`( ${x}, ${y} ) '${thiscell}' > '${mapPalette[mapLayerName][thiscell]}' - '${newcell}'`)}
                         tMapArray.push([x,y,newcell])
+                        continue;
+                    }
+                    if(all_tileDict.hasOwnProperty("unknown_tile")){
+                        newcell = all_tileDict.unknown_tile.tile
+                        tMapArray.push([x,y,newcell])
+                        continue;
                     }
                 }
             }
@@ -1354,11 +1419,11 @@ function importMap(pathToMap,j){
     tm.setProperty("import_tileset",config.chosenTileset)
     
     let pathToTMX = config.pathToTMX +"/"+ FileInfo.baseName(pathToMap) +".tmx"
-    
-    let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
+    tiled.activeAsset = tm
+    // let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
     // let outputFileResults = writeToFile(pathToTMX,tm);
-    (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
-    tiled.open(pathToTMX);
+    // (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
+    // tiled.open(pathToTMX);
 }
 function addNewOmTerrainToMap(){
     return tiled.activeAsset.isTileMap ? tiled.activeAsset.addLayer(makeNewOmTerrain([tiled.activeAsset.width,tiled.activeAsset.height])) : tiled.log(`No tilemap found to add layer.`)
