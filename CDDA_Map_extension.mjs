@@ -20,7 +20,7 @@ const utf_ramps = {
         "t_soil" : `░`,
         "wall" : `▓▒░$@B%&WM#/|(){}[]!I`,
         "fence" : `‡ǂ#H`,
-        "door" : `◘D`,
+        "door" : `D`,
         "window" : `o◦`,
         "pavement" : `'^,:;_-+`,
         "sidewalk" : `'^,:;_-+`,
