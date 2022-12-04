@@ -833,11 +833,23 @@ MouseOver tooltips not formatted - for preview only.`,true)
     let mapEntriesToImport = {}
     for(let i in j){
         if(j[i].type != "mapgen" || j[i].method != "json"){continue;}
+        let height;
+        let width;
+        let tooltiptext;
+        if(j[i].object.hasOwnProperty(`mapgensize`)){
+            height = j[i].object.magensize[1]
+            width = j[i].object.magensize[0]
+            tooltiptext = `No preview for map type 'mapgensize'`
+        } // TODO #81 import maps with 'mapgensize' instead of 'rows'
         if(!j[i].object.hasOwnProperty(`rows`)){continue;} // TODO #81 import maps with 'mapgensize' instead of 'rows'
+        if(j[i].object.hasOwnProperty(`rows`)){
+            height = j[i].object.rows.length
+            width = j[i].object.rows[0].length
+            tooltiptext = JSON.stringify(j[i].object.rows).replace(/,/g,"\n").replace(/[\[\]]/g,"")
+        }
         if(j[i].object.rows.length < 1){continue;}
         let checkboxdisplay = `${j[i].om_terrain}`.length < 63 ? j[i].om_terrain : `${j[i].om_terrain}`.slice(0,60)+"..."
-        let checkbox = dialog.addCheckBox(`'${checkboxdisplay}' (${j[i].object.rows[0].length}x${j[i].object.rows.length})`,true)
-        let tooltiptext = JSON.stringify(j[i].object.rows).replace(/,/g,"\n").replace(/[\[\]]/g,"")
+        let checkbox = dialog.addCheckBox(`'${checkboxdisplay}' (${width}x${height})`,true)
         checkbox.toolTip = tooltiptext
 
         mapEntriesToImport[j[i].om_terrain] = {
@@ -912,14 +924,14 @@ function importMap(pathToMap,j){
         var importMapSize = import_map.object.rows[0].length;
         tiled.log(`Working on map '${import_map.om_terrain}'`)
         // check if has fill_ter, TODO remove later
-        if (import_map.object.hasOwnProperty("fill_ter")){tiled.log(`Has fill_ter: ${import_map.object.fill_ter}`);}
+        if (import_map.object.hasOwnProperty("fill_ter")){if(verbose>=1){tiled.log(`Has fill_ter: ${import_map.object.fill_ter}`);};}
 
         let mapArray = import_map['object']['rows'];
 
         // init mapPallete
         let mapPalette = buildTilePaletteDict(import_map);
 
-        if(verbose){
+        if(verbose>=1){
             tiled.log(`Original Map`)
             for (let row of mapArray){
                 tiled.log(row)
@@ -1427,6 +1439,7 @@ function importMap(pathToMap,j){
     
     let pathToTMX = config.pathToTMX +"/"+ FileInfo.baseName(pathToMap) +".tmx"
     tiled.activeAsset = tm
+    if(config.snaptogrid){tiled.trigger("SnapToGrid")}
     // let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
     // let outputFileResults = writeToFile(pathToTMX,tm);
     // (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
@@ -1474,6 +1487,7 @@ function makeEmptyMap(){
     let outputFileResults = tiled.mapFormat("tmx").write(tm, filepath);
     (outputFileResults == null) ? tiled.log(FileInfo.baseName(filepath) + " file created successfully.") : tiled.log(FileInfo.baseName(filepath) + " - FAILED to create file. Error: " + outputFileResults)
     tiled.open(filepath);
+    if(config.snaptogrid){tiled.trigger("SnapToGrid")}
 }
 
 function exportMap(map){
@@ -1944,6 +1958,7 @@ class extensionConfig {
         this.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx/"+this.chosenTileset)
         this.pathToJSON = FileInfo.toNativeSeparators(this.pathToChosenTileset + "/tile_config.json");
         this.pathToFavoritesTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx/favorites/favorites.tsx");
+        this.snaptogrid = true;
 };
 };
 var CDDAMapFormat = {
