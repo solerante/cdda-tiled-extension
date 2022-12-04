@@ -3,7 +3,7 @@
 //0x400 | 0x2000 | 0x4000 qdir filter for dir no dot and dotdot
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
-var verbose = true
+var verbose = false
 
 const pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
 const pathToExtras = FileInfo.toNativeSeparators(tiled.extensionsPath + "/cdda_map_extension_extras");
@@ -190,6 +190,7 @@ const cte = { // helper functions
 
 function initialize(){
     if( !File.exists(pathToMainConfig)){
+        action_cdda_verbose.checked = true
         mainConfig = { "pathToProject" : "~/cdda_tiled_project" }
         // let pathToProject = FileInfo.toNativeSeparators(FileInfo.path(tiled.prompt("Path to tiled project folder:",mainConfig.pathToProject,"project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder)))
         prepareMainConfig(mainConfig.pathToProject)
@@ -833,11 +834,23 @@ MouseOver tooltips not formatted - for preview only.`,true)
     let mapEntriesToImport = {}
     for(let i in j){
         if(j[i].type != "mapgen" || j[i].method != "json"){continue;}
+        let height;
+        let width;
+        let tooltiptext;
+        if(j[i].object.hasOwnProperty(`mapgensize`)){
+            height = j[i].object.magensize[1]
+            width = j[i].object.magensize[0]
+            tooltiptext = `No preview for map type 'mapgensize'`
+        } // TODO #81 import maps with 'mapgensize' instead of 'rows'
         if(!j[i].object.hasOwnProperty(`rows`)){continue;} // TODO #81 import maps with 'mapgensize' instead of 'rows'
+        if(j[i].object.hasOwnProperty(`rows`)){
+            height = j[i].object.rows.length
+            width = j[i].object.rows[0].length
+            tooltiptext = JSON.stringify(j[i].object.rows).replace(/,/g,"\n").replace(/[\[\]]/g,"")
+        }
         if(j[i].object.rows.length < 1){continue;}
         let checkboxdisplay = `${j[i].om_terrain}`.length < 63 ? j[i].om_terrain : `${j[i].om_terrain}`.slice(0,60)+"..."
-        let checkbox = dialog.addCheckBox(`'${checkboxdisplay}' (${j[i].object.rows[0].length}x${j[i].object.rows.length})`,true)
-        let tooltiptext = JSON.stringify(j[i].object.rows).replace(/,/g,"\n").replace(/[\[\]]/g,"")
+        let checkbox = dialog.addCheckBox(`'${checkboxdisplay}' (${width}x${height})`,true)
         checkbox.toolTip = tooltiptext
 
         mapEntriesToImport[j[i].om_terrain] = {
@@ -912,14 +925,14 @@ function importMap(pathToMap,j){
         var importMapSize = import_map.object.rows[0].length;
         tiled.log(`Working on map '${import_map.om_terrain}'`)
         // check if has fill_ter, TODO remove later
-        if (import_map.object.hasOwnProperty("fill_ter")){tiled.log(`Has fill_ter: ${import_map.object.fill_ter}`);}
+        if (import_map.object.hasOwnProperty("fill_ter")){if(verbose>=1){tiled.log(`Has fill_ter: ${import_map.object.fill_ter}`);};}
 
         let mapArray = import_map['object']['rows'];
 
         // init mapPallete
         let mapPalette = buildTilePaletteDict(import_map);
 
-        if(verbose){
+        if(verbose>=1){
             tiled.log(`Original Map`)
             for (let row of mapArray){
                 tiled.log(row)
@@ -1427,6 +1440,7 @@ function importMap(pathToMap,j){
     
     let pathToTMX = config.pathToTMX +"/"+ FileInfo.baseName(pathToMap) +".tmx"
     tiled.activeAsset = tm
+    if(config.snaptogrid){tiled.trigger("SnapToGrid")}
     // let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
     // let outputFileResults = writeToFile(pathToTMX,tm);
     // (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
@@ -1474,6 +1488,7 @@ function makeEmptyMap(){
     let outputFileResults = tiled.mapFormat("tmx").write(tm, filepath);
     (outputFileResults == null) ? tiled.log(FileInfo.baseName(filepath) + " file created successfully.") : tiled.log(FileInfo.baseName(filepath) + " - FAILED to create file. Error: " + outputFileResults)
     tiled.open(filepath);
+    if(config.snaptogrid){tiled.trigger("SnapToGrid")}
 }
 
 function exportMap(map){
@@ -1642,10 +1657,10 @@ function exportMap(map){
                         if(["cdda_id","group"].includes(prop) || obj.resolvedProperties()[prop] == ""){continue;}
                         json_entry[prop] = obj.resolvedProperties()[prop]
                     }
-                    json_entry.x = obj.width > 32 ? [obj.x/32,(obj.x+obj.width)/32] : obj.x/32
-                    json_entry.y = obj.height > 32 ? [obj.y/32,(obj.y+obj.height)/32] : obj.y/32
+                    json_entry.x = obj.width > 32 ? [Math.floor(obj.x/32),Math.floor((obj.x+obj.width)/32)] : Math.floor(obj.x/32)
+                    json_entry.y = obj.height > 32 ? [Math.floor(obj.y/32),(Math.floor(obj.y+obj.height)/32)] : Math.floor(obj.y/32)
                     if(obj.hasOwnProperty("tile")){ // offset objects containing tiles because of 
-                        json_entry.y = obj.height > 32 ? [(obj.y/32)-1,((obj.y+obj.height)/32)-1] : (obj.y/32)-1
+                        json_entry.y = obj.height > 32 ? [Math.floor((obj.y/32)-1),Math.floor(((obj.y+obj.height)/32))-1] : Math.floor((obj.y/32))-1
                     }
                     if(!mapEntry.object.hasOwnProperty(sublayer.property("cdda_layer"))){
                         mapEntry.object[sublayer.property("cdda_layer")] = []
@@ -1659,15 +1674,17 @@ function exportMap(map){
             if(!assigned_symbols.includes(symbol)){assigned_symbols.push(symbol);}
         }
 
-        tiled.log(`Layer dimensions: ${layer.layers}`)
-        if(verbose){tiled.log(`coordinate assignemnts:`);}
-        for (let ca in coordinate_assignments){
-            if(verbose){tiled.log(`${ca} > ${cte.flattenDict(coordinate_assignments[ca])} (${Object.keys(coordinate_assignments[ca]).length})`);}
-
+        if(verbose >= 1){
+            tiled.log(`coordinate assignemnts:`);
+            for (let ca in coordinate_assignments){
+                tiled.log(`${ca} > ${cte.flattenDict(coordinate_assignments[ca])} (${Object.keys(coordinate_assignments[ca]).length})`);
+            }
         }
-        if(verbose){tiled.log(`combined symbols assignemnts:`);}
-        for (let s in combined_symbols_dict){
-            if(verbose){tiled.log(`${s} > ${combined_symbols_dict[s]} (${combined_symbols_dict[s].length})`);}
+        if(verbose >= 1){
+            tiled.log(`combined symbols assignemnts:`)
+            for (let s in combined_symbols_dict){
+                tiled.log(`${s} > ${combined_symbols_dict[s]} (${combined_symbols_dict[s].length})`)
+            }
         }
         // assign symbols to coordinates on map
         coordinate_entry_loop:
@@ -1682,7 +1699,7 @@ function exportMap(map){
                 if(combined_symbols_dict[possible_symbol].length == Object.keys(coordinate_assignments[coordinate]).length && 
                     cte.flattenDict(coordinate_assignments[coordinate]).every(r => cte.flattenArray(combined_symbols_dict[possible_symbol]).includes(r))
                     ){
-                    if(verbose ){tiled.log(`[${x},${y}] palette assign '${possible_symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
+                    if(verbose >= 1){tiled.log(`[${x},${y}] palette assign '${possible_symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
                     layer_map_array[y] = layer_map_array[y].slice(0,x)+possible_symbol+layer_map_array[y].slice(x+1)
 
                         
@@ -1709,7 +1726,7 @@ function exportMap(map){
                     Object.keys(custom_symbols_dict[symbol]).length == Object.keys(coordinate_assignments[coordinate]).length && 
                     cte.flattenDict(coordinate_assignments[coordinate]).every(r => cte.flattenDict(custom_symbols_dict[symbol]).includes(r))
                 ){
-                    if(verbose){tiled.log(`[${x}, ${y}] - previously assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
+                    if(verbose >= 1){tiled.log(`[${x}, ${y}] - previously assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
                     layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
                     
                     continue coordinate_entry_loop;
@@ -1727,7 +1744,7 @@ function exportMap(map){
             symbolstouse += utf_ramps.utf8_shortlist
             for(let symbol of symbolstouse){
                 if(assigned_symbols.includes(symbol)){continue;} else { assigned_symbols.push(symbol);}
-                if(verbose){tiled.log(`( ${x}, ${y} ) - newly assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
+                if(verbose >= 1){tiled.log(`( ${x}, ${y} ) - newly assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
                 custom_symbols_dict[symbol] = coordinate_assignments[coordinate]
                 layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
                 for(let entry in coordinate_assignments[coordinate]){
@@ -1741,17 +1758,21 @@ function exportMap(map){
                 continue coordinate_entry_loop;
             }
         }
-        tiled.log("complete symbol map")
-        for (let y = 0; y < layer_map_array.length; y++){
-            tiled.log(layer_map_array[y])
-            for (let x = 0; x < layer_map_array[y].length; x++){
+        if(verbose >= 1){
+            tiled.log("complete symbol map")
+            for (let y = 0; y < layer_map_array.length; y++){
+                tiled.log(layer_map_array[y])
+                for (let x = 0; x < layer_map_array[y].length; x++){
+                };
             };
-        };
+        }
         mapEntry.object.rows = layer_map_array
 
-        tiled.log("assigned symbols = "+assigned_symbols)
-        for (let d in mapEntry.object){ // cleanup empty 'objects'
-            if (mapEntry.object[d] == "" || (typeof mapEntry.object[d] === "object" &&  Object.keys(mapEntry.object[d]).length === 0)){ delete mapEntry.object[d]; };
+        if(verbose >= 1){
+            tiled.log("assigned symbols = "+assigned_symbols)
+            for (let d in mapEntry.object){ // cleanup empty 'objects'
+                if (mapEntry.object[d] == "" || (typeof mapEntry.object[d] === "object" &&  Object.keys(mapEntry.object[d]).length === 0)){ delete mapEntry.object[d]; };
+            };
         };
         return mapEntry;
     }
@@ -1944,6 +1965,7 @@ class extensionConfig {
         this.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx/"+this.chosenTileset)
         this.pathToJSON = FileInfo.toNativeSeparators(this.pathToChosenTileset + "/tile_config.json");
         this.pathToFavoritesTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx/favorites/favorites.tsx");
+        this.snaptogrid = true;
 };
 };
 var CDDAMapFormat = {
@@ -2025,6 +2047,11 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     tiled.log(`!!!!!end file: ${filepath}`)
     // findTileInTilesets(cdda_id_tofind)
 });
+//test action for debug
+const action_cdda_verbose = tiled.registerAction("CustomAction_cdda_verbose", function(action_cdda_verbose) {
+    tiled.log(action_cdda_verbose.text + " was " + (action_cdda_verbose.checked ? "checked" : "unchecked"))
+    action_cdda_verbose.checked ? verbose = true : verbose = false
+});
 
 action_importTileset.text = "Import CDDA tileset"
 action_createNewMap.text = "Create new CDDA map"
@@ -2036,6 +2063,8 @@ action_findTileInTilemap.shortcut = "CTRL+F"
 action_add_sprite_to_favotires.text = "Add Sprite to Favorites"
 action_add_sprite_to_favotires.shortcut = "CTRL+SHIFT+F"
 action_changeProjectPath.text = "Change project path"
+action_cdda_verbose.text = "Verbose Logging (slower performance)"
+action_cdda_verbose.checkable = true
 
 action_cdda_debug.text = "run associated debug action"
 action_cdda_debug.shortcut = "CTRL+D"
@@ -2063,6 +2092,7 @@ tiled.extendMenu("Edit", [
 ]);
 tiled.extendMenu("Help", [
     { separator: true },
+    { action: "CustomAction_cdda_verbose", after: "Terrain Sets" },
     { action: "CustomAction_cdda_debug", after: "Terrain Sets" },
     { separator: true }
 ]);
