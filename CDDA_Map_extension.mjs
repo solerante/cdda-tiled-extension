@@ -3,7 +3,7 @@
 //0x400 | 0x2000 | 0x4000 qdir filter for dir no dot and dotdot
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
-var verbose = true
+var verbose = false
 
 const pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
 const pathToExtras = FileInfo.toNativeSeparators(tiled.extensionsPath + "/cdda_map_extension_extras");
@@ -190,6 +190,7 @@ const cte = { // helper functions
 
 function initialize(){
     if( !File.exists(pathToMainConfig)){
+        action_cdda_verbose.checked = true
         mainConfig = { "pathToProject" : "~/cdda_tiled_project" }
         // let pathToProject = FileInfo.toNativeSeparators(FileInfo.path(tiled.prompt("Path to tiled project folder:",mainConfig.pathToProject,"project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder)))
         prepareMainConfig(mainConfig.pathToProject)
@@ -1674,10 +1675,11 @@ function exportMap(map){
         }
 
         tiled.log(`Layer dimensions: ${layer.layers}`)
-        if(verbose){tiled.log(`coordinate assignemnts:`);}
-        for (let ca in coordinate_assignments){
-            if(verbose){tiled.log(`${ca} > ${cte.flattenDict(coordinate_assignments[ca])} (${Object.keys(coordinate_assignments[ca]).length})`);}
-
+        if(verbose >= 1){
+            tiled.log(`coordinate assignemnts:`);
+            for (let ca in coordinate_assignments){
+                tiled.log(`${ca} > ${cte.flattenDict(coordinate_assignments[ca])} (${Object.keys(coordinate_assignments[ca]).length})`);
+            }
         }
         if(verbose){tiled.log(`combined symbols assignemnts:`);}
         for (let s in combined_symbols_dict){
@@ -2040,6 +2042,11 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     tiled.log(`!!!!!end file: ${filepath}`)
     // findTileInTilesets(cdda_id_tofind)
 });
+//test action for debug
+const action_cdda_verbose = tiled.registerAction("CustomAction_cdda_verbose", function(action_cdda_verbose) {
+    tiled.log(action_cdda_verbose.text + " was " + (action_cdda_verbose.checked ? "checked" : "unchecked"))
+    action_cdda_verbose.checked ? verbose = true : verbose = false
+});
 
 action_importTileset.text = "Import CDDA tileset"
 action_createNewMap.text = "Create new CDDA map"
@@ -2051,6 +2058,8 @@ action_findTileInTilemap.shortcut = "CTRL+F"
 action_add_sprite_to_favotires.text = "Add Sprite to Favorites"
 action_add_sprite_to_favotires.shortcut = "CTRL+SHIFT+F"
 action_changeProjectPath.text = "Change project path"
+action_cdda_verbose.text = "Verbose Logging (slower performance)"
+action_cdda_verbose.checkable = true
 
 action_cdda_debug.text = "run associated debug action"
 action_cdda_debug.shortcut = "CTRL+D"
@@ -2078,6 +2087,7 @@ tiled.extendMenu("Edit", [
 ]);
 tiled.extendMenu("Help", [
     { separator: true },
+    { action: "CustomAction_cdda_verbose", after: "Terrain Sets" },
     { action: "CustomAction_cdda_debug", after: "Terrain Sets" },
     { separator: true }
 ]);
