@@ -912,6 +912,7 @@ function importMap(pathToMap,j){
     // if(!pathToMap){
     //     pathToMap = FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json")
     // }
+    let originalOpenAssets = tiled.openAssets
     config.pathToLastImportMap = pathToMap;
     cte.updateConfig();
     tiled.log(`Importing '${pathToMap}'`)
@@ -1140,9 +1141,6 @@ function importMap(pathToMap,j){
             }
         }
         
-
-
-
         // get tile numbers, cdda IDs, and tilset file ??
         let entityEntries = {};
         let mapArrays = {};
@@ -1499,6 +1497,11 @@ function importMap(pathToMap,j){
     tm.setProperty("import_tileset",config.chosenTileset)
     
     let pathToTMX = config.pathToTMX +"/"+ FileInfo.baseName(pathToMap) +".tmx"
+    for(let openAsset of tiled.openAssets){
+        if(originalOpenAssets.includes(openAsset)){continue;}
+        if(openAsset == tm){continue;}
+        tiled.close(openAsset)
+    }
     tiled.activeAsset = tm
     if(config.snaptogrid){tiled.trigger("SnapToGrid")}
     // let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
