@@ -1657,10 +1657,10 @@ function exportMap(map){
                         if(["cdda_id","group"].includes(prop) || obj.resolvedProperties()[prop] == ""){continue;}
                         json_entry[prop] = obj.resolvedProperties()[prop]
                     }
-                    json_entry.x = obj.width > 32 ? [obj.x/32,(obj.x+obj.width)/32] : obj.x/32
-                    json_entry.y = obj.height > 32 ? [obj.y/32,(obj.y+obj.height)/32] : obj.y/32
+                    json_entry.x = obj.width > 32 ? [Math.floor(obj.x/32),Math.floor((obj.x+obj.width)/32)] : Math.floor(obj.x/32)
+                    json_entry.y = obj.height > 32 ? [Math.floor(obj.y/32),(Math.floor(obj.y+obj.height)/32)] : Math.floor(obj.y/32)
                     if(obj.hasOwnProperty("tile")){ // offset objects containing tiles because of 
-                        json_entry.y = obj.height > 32 ? [(obj.y/32)-1,((obj.y+obj.height)/32)-1] : (obj.y/32)-1
+                        json_entry.y = obj.height > 32 ? [Math.floor((obj.y/32)-1),Math.floor(((obj.y+obj.height)/32))-1] : Math.floor((obj.y/32))-1
                     }
                     if(!mapEntry.object.hasOwnProperty(sublayer.property("cdda_layer"))){
                         mapEntry.object[sublayer.property("cdda_layer")] = []
@@ -1674,16 +1674,17 @@ function exportMap(map){
             if(!assigned_symbols.includes(symbol)){assigned_symbols.push(symbol);}
         }
 
-        tiled.log(`Layer dimensions: ${layer.layers}`)
         if(verbose >= 1){
             tiled.log(`coordinate assignemnts:`);
             for (let ca in coordinate_assignments){
                 tiled.log(`${ca} > ${cte.flattenDict(coordinate_assignments[ca])} (${Object.keys(coordinate_assignments[ca]).length})`);
             }
         }
-        if(verbose){tiled.log(`combined symbols assignemnts:`);}
-        for (let s in combined_symbols_dict){
-            if(verbose){tiled.log(`${s} > ${combined_symbols_dict[s]} (${combined_symbols_dict[s].length})`);}
+        if(verbose >= 1){
+            tiled.log(`combined symbols assignemnts:`)
+            for (let s in combined_symbols_dict){
+                tiled.log(`${s} > ${combined_symbols_dict[s]} (${combined_symbols_dict[s].length})`)
+            }
         }
         // assign symbols to coordinates on map
         coordinate_entry_loop:
@@ -1698,7 +1699,7 @@ function exportMap(map){
                 if(combined_symbols_dict[possible_symbol].length == Object.keys(coordinate_assignments[coordinate]).length && 
                     cte.flattenDict(coordinate_assignments[coordinate]).every(r => cte.flattenArray(combined_symbols_dict[possible_symbol]).includes(r))
                     ){
-                    if(verbose ){tiled.log(`[${x},${y}] palette assign '${possible_symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
+                    if(verbose >= 1){tiled.log(`[${x},${y}] palette assign '${possible_symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
                     layer_map_array[y] = layer_map_array[y].slice(0,x)+possible_symbol+layer_map_array[y].slice(x+1)
 
                         
@@ -1725,7 +1726,7 @@ function exportMap(map){
                     Object.keys(custom_symbols_dict[symbol]).length == Object.keys(coordinate_assignments[coordinate]).length && 
                     cte.flattenDict(coordinate_assignments[coordinate]).every(r => cte.flattenDict(custom_symbols_dict[symbol]).includes(r))
                 ){
-                    if(verbose){tiled.log(`[${x}, ${y}] - previously assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
+                    if(verbose >= 1){tiled.log(`[${x}, ${y}] - previously assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
                     layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
                     
                     continue coordinate_entry_loop;
@@ -1743,7 +1744,7 @@ function exportMap(map){
             symbolstouse += utf_ramps.utf8_shortlist
             for(let symbol of symbolstouse){
                 if(assigned_symbols.includes(symbol)){continue;} else { assigned_symbols.push(symbol);}
-                if(verbose){tiled.log(`( ${x}, ${y} ) - newly assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
+                if(verbose >= 1){tiled.log(`( ${x}, ${y} ) - newly assigned '${symbol}' > '${cte.flattenDict(coordinate_assignments[coordinate])}'`);}
                 custom_symbols_dict[symbol] = coordinate_assignments[coordinate]
                 layer_map_array[y] = layer_map_array[y].slice(0,x)+symbol+layer_map_array[y].slice(x+1)
                 for(let entry in coordinate_assignments[coordinate]){
@@ -1757,17 +1758,21 @@ function exportMap(map){
                 continue coordinate_entry_loop;
             }
         }
-        tiled.log("complete symbol map")
-        for (let y = 0; y < layer_map_array.length; y++){
-            tiled.log(layer_map_array[y])
-            for (let x = 0; x < layer_map_array[y].length; x++){
+        if(verbose >= 1){
+            tiled.log("complete symbol map")
+            for (let y = 0; y < layer_map_array.length; y++){
+                tiled.log(layer_map_array[y])
+                for (let x = 0; x < layer_map_array[y].length; x++){
+                };
             };
-        };
+        }
         mapEntry.object.rows = layer_map_array
 
-        tiled.log("assigned symbols = "+assigned_symbols)
-        for (let d in mapEntry.object){ // cleanup empty 'objects'
-            if (mapEntry.object[d] == "" || (typeof mapEntry.object[d] === "object" &&  Object.keys(mapEntry.object[d]).length === 0)){ delete mapEntry.object[d]; };
+        if(verbose >= 1){
+            tiled.log("assigned symbols = "+assigned_symbols)
+            for (let d in mapEntry.object){ // cleanup empty 'objects'
+                if (mapEntry.object[d] == "" || (typeof mapEntry.object[d] === "object" &&  Object.keys(mapEntry.object[d]).length === 0)){ delete mapEntry.object[d]; };
+            };
         };
         return mapEntry;
     }
