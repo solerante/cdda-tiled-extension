@@ -826,7 +826,7 @@ function importMapChoiceDialog(filepath){
     
     let dialog = new Dialog()
     dialog.windowTitle = `Select Maps to Import`
-    dialog.addLabel(`Select maps (om_terains) to import from map file '${FileInfo.fileName(filepath)}'.\n
+    dialog.addLabel(`Select maps (om_terains or [n] nested) to import from map file '${FileInfo.fileName(filepath)}'.\n
 Maps with different sizes will all import with largest size.
 MouseOver tooltips not formatted - for preview only.`,true)
     dialog.addNewRow()
@@ -834,29 +834,48 @@ MouseOver tooltips not formatted - for preview only.`,true)
     let mapEntriesToImport = {}
     for(let i in j){
         if(j[i].type != "mapgen" || j[i].method != "json"){continue;}
+        let name;
         let height;
         let width;
         let tooltiptext;
+        if(j[i].hasOwnProperty(`om_terrain`)){
+            name = j[i].om_terrain
+        }
+        if(j[i].hasOwnProperty(`nested_mapgen_id`)){
+            name = j[i].nested_mapgen_id
+        }
+        if(verbose >= 1){tiled.log(`pre-loading map '${name}'`);}
         if(j[i].object.hasOwnProperty(`mapgensize`)){
-            height = j[i].object.magensize[1]
-            width = j[i].object.magensize[0]
+            height = j[i].object.mapgensize[1]
+            width = j[i].object.mapgensize[0]
             tooltiptext = `No preview for map type 'mapgensize'`
-        } // TODO #81 import maps with 'mapgensize' instead of 'rows'
-        if(!j[i].object.hasOwnProperty(`rows`)){continue;} // TODO #81 import maps with 'mapgensize' instead of 'rows'
+        }
         if(j[i].object.hasOwnProperty(`rows`)){
             height = j[i].object.rows.length
             width = j[i].object.rows[0].length
             tooltiptext = JSON.stringify(j[i].object.rows).replace(/,/g,"\n").replace(/[\[\]]/g,"")
         }
-        if(j[i].object.rows.length < 1){continue;}
-        let checkboxdisplay = `${j[i].om_terrain}`.length < 63 ? j[i].om_terrain : `${j[i].om_terrain}`.slice(0,60)+"..."
-        let checkbox = dialog.addCheckBox(`'${checkboxdisplay}' (${width}x${height})`,true)
+        // if(j[i].object.rows.length < 1){continue;}
+        let checkboxdisplay = `${name}`.length < 63 ? name : `${name}`.slice(0,60)+"..."
+        if(j[i].hasOwnProperty(`nested_mapgen_id`)){
+            checkboxdisplay = `[n] ${checkboxdisplay}`
+        };
+        let checkbox = dialog.addCheckBox(`${checkboxdisplay} (${width}x${height})`,true)
         checkbox.toolTip = tooltiptext
 
-        mapEntriesToImport[j[i].om_terrain] = {
-            "index" : i,
-            "checkbox" : checkbox,
-            "entry" : j[i]
+        if(j[i].hasOwnProperty(`om_terrain`)){
+            mapEntriesToImport[j[i].om_terrain] = {
+                "index" : i,
+                "checkbox" : checkbox,
+                "entry" : j[i]
+            }
+        }
+        if(j[i].hasOwnProperty(`nested_mapgen_id`)){
+            mapEntriesToImport[j[i].nested_mapgen_id] = {
+                "index" : i,
+                "checkbox" : checkbox,
+                "entry" : j[i]
+            }
         }
         // mapEntriesToImport.push(entry)
         dialog.addNewRow()
@@ -908,10 +927,24 @@ function importMap(pathToMap,j){
     let mapwidth = 0
     let mapheight = 0
     for(let i in j){ // find valid entry for size
+        let xy;
+        let name;
+        if (j[i].object.hasOwnProperty("rows")){
+            xy = [j[i]['object']['rows'][0].length,j[i]['object']['rows'].length]
+        }
+        if (j[i].object.hasOwnProperty("mapgensize")){
+            xy = j[i].object.mapgensize
+        }
         if(j[i].type != "mapgen" || j[i].method != "json"){continue;} // must be mapgen and json
-        if(j[i]['object']['rows'][0].length > mapwidth){ mapwidth = j[i]['object']['rows'][0].length}
-        if(j[i]['object']['rows'].length > mapheight){ mapheight = j[i]['object']['rows'].length}
-        tm = prepareTilemap(j[i]['om_terrain'],[mapwidth,mapheight])
+        if(xy[0] > mapwidth){ mapwidth = xy[0]}
+        if(xy[1] > mapheight){ mapheight = xy[1]}
+        if(j[i].hasOwnProperty("om_terrain")){
+            name = j[i].om_terrain
+        }
+        if(j[i].hasOwnProperty(`nested_mapgen_id`)){
+            name = j[i].nested_mapgen_id
+        }
+        tm = prepareTilemap(name,[mapwidth,mapheight])
         break;
     }
 
@@ -921,18 +954,33 @@ function importMap(pathToMap,j){
         if(j[i].type != "mapgen" || j[i].method != "json"){continue;} // must be mapgen and json
         var import_map = j[i];
 
-        var importMapName = import_map.om_terrain;
-        var importMapSize = import_map.object.rows[0].length;
-        tiled.log(`Working on map '${import_map.om_terrain}'`)
+        var importMapName;
+        
+        if(j[i].hasOwnProperty("om_terrain")){
+            importMapName = j[i].om_terrain
+        }
+        if(j[i].hasOwnProperty(`nested_mapgen_id`)){
+            importMapName = j[i].nested_mapgen_id
+        }
+        // var importMapSize = import_map.object.rows[0].length;
+        let mapArray;
+        tiled.log(`Working on map '${importMapName}'`)
         // check if has fill_ter, TODO remove later
         if (import_map.object.hasOwnProperty("fill_ter")){if(verbose>=1){tiled.log(`Has fill_ter: ${import_map.object.fill_ter}`);};}
 
-        let mapArray = import_map['object']['rows'];
+        if (import_map.object.hasOwnProperty("mapgensize")){
+            for(let y; y < import_map.object.mapgensize[1]; y++){
+                mapArray.push(" ".repeat(import_map.object.mapgensize[0]))
+            }
+        }
+        if (import_map.object.hasOwnProperty("rows")){
+            mapArray = import_map['object']['rows'];
+        }
 
         // init mapPallete
         let mapPalette = buildTilePaletteDict(import_map);
 
-        if(verbose>=1){
+        if(verbose >= 1){
             tiled.log(`Original Map`)
             for (let row of mapArray){
                 tiled.log(row)
@@ -1278,8 +1326,14 @@ function importMap(pathToMap,j){
             // tile layers
             if(mapLayerTypes.some(a => a === layername) || layername == "fill_ter"){
                 let tl = new TileLayer(layername);
-                tl.width = import_map.object.rows[0].length;
-                tl.height = import_map.object.rows.length
+                if (import_map.object.hasOwnProperty("mapgensize")){
+                    tl.width = import_map.object.mapgensize[0];
+                    tl.height = import_map.object.mapgensize[1]
+                }
+                if (import_map.object.hasOwnProperty("rows")){
+                    tl.width = import_map.object.rows[0].length;
+                    tl.height = import_map.object.rows.length
+                }
                 tl.setProperty("cdda_layer", layername)
                 let tle = tl.edit()
                 tiled.log(`editing layer ${tle.target.name}`)
@@ -1310,8 +1364,14 @@ function importMap(pathToMap,j){
                     return
                 }
                 let og = new ObjectGroup(layername)
-                og.width = import_map.object.rows[0].length;
-                og.height = import_map.object.rows.length;
+                if (import_map.object.hasOwnProperty("mapgensize")){
+                    og.width = import_map.object.mapgensize[0];
+                    og.height = import_map.object.mapgensize[1]
+                }
+                if (import_map.object.hasOwnProperty("rows")){
+                    og.width = import_map.object.rows[0].length;
+                    og.height = import_map.object.rows.length;
+                }
                 og.setProperty("cdda_layer", layername)
                 // let oge = og.edit()
                 if(verbose >= 1){ tiled.log(`editing layer '${og.name}' - '${layername}'`);}
