@@ -11,7 +11,7 @@ const pathToMainConfig = FileInfo.toNativeSeparators(pathToExtras + "/cdda_map_e
 const configfilename = "tiled_cdda_extension_config.json";
 
 const mapLayerTypes = ["terrain","furniture","traps","vehicles","items"]
-const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields"]
+const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields", "place_zones"]
 const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN","ALLOW_TERRAIN_UNDER_OTHER_DATA","NO_UNDERLYING_ROTATE","AVOID_CREATURES"]
 const utf_ramps = {
     "utf8_shortlist" : `#$%&'()*+,-.:;<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¹º»¼½¾¿0123456789`,
@@ -318,6 +318,7 @@ function add_cdda_id_to_unknowns(cdda_id){
     let unknowns;
     if(!config.hasOwnProperty(pathToUnknownsTSX)){
         config.pathToUnknownsTSX = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+"/unknown_tiles.tsx")
+        cte.updateConfig()
     }
     if(!File.exists(config.pathToUnknownsTSX)){
         unknowns = new Tileset("Unknown Tiles");
@@ -325,7 +326,7 @@ function add_cdda_id_to_unknowns(cdda_id){
     }
     for(let asset of tiled.openAssets){
         if(asset.fileName == config.pathToUnknownsTSX){
-            favorites = asset
+            unknowns = asset
             break
         }
     }
@@ -828,7 +829,8 @@ function importMapChoiceDialog(filepath){
     dialog.windowTitle = `Select Maps to Import`
     dialog.addLabel(`Select maps (om_terains or [n] nested) to import from map file '${FileInfo.fileName(filepath)}'.\n
 Maps with different sizes will all import with largest size.
-MouseOver tooltips not formatted - for preview only.`,true)
+MouseOver tooltips not formatted - for preview only.\n
+Don't forget to SAVE YOUR MAP`,true)
     dialog.addNewRow()
     dialog.addSeparator(`Maps`)
     let mapEntriesToImport = {}
@@ -1008,7 +1010,7 @@ function importMap(pathToMap,j){
             return tempPaletteDict
         }
 
-        // make dict of all tiles
+        // make dict of all tiles in use
         let all_tileDict = {}
         // all_tileDict.unknown = {}
         all_tileDict.unknown_tile = {}
@@ -1098,6 +1100,9 @@ function importMap(pathToMap,j){
                     if(obj == "place_item"){
                         dict[entry.item] = {}
                     }
+                    if(obj == "place_zones"){
+                        dict[entry.item] = {}
+                    }
                     if(obj == "place_fields"){
                         dict[entry.field] = {}
                     }
@@ -1142,7 +1147,6 @@ function importMap(pathToMap,j){
         }
         
         // get tile numbers, cdda IDs, and tilset file ??
-        let entityEntries = {};
         let mapArrays = {};
 
 
@@ -1162,18 +1166,6 @@ function importMap(pathToMap,j){
         }
 
 
-
-
-        // init entityEntries
-        for (let entityLayerType of entityLayerTypes){
-            if(verbose >= 1){tiled.log(`initializing '${entityLayerType}' for entityEntries`)}
-            entityEntries[entityLayerType] = [];
-        }
-
-        for (let entityLayerType of entityLayerTypes){
-            tiled.log(`preparing map array for layer '${entityLayerType}'`)
-            mapArrays[entityLayerType] = getMapEntities(entityLayerType);
-        };
         for (let entityLayerType of entityLayerTypes){
             tiled.log(`mapArrays["${entityLayerType}"]`);
             for (let e in mapArrays[entityLayerType]){
@@ -1181,38 +1173,6 @@ function importMap(pathToMap,j){
             };
         };
 
-        function getMapEntities(entityType){ // place_item, place_items, place_monsters, place_vehicles
-            let tMapArray = []
-            if(import_map.object.hasOwnProperty(entityType)){
-                if(verbose >= 1){tiled.log(`getting entity type '${entityType}' from file`)}
-                // entityEntries[entityType] = import_map.object[entityType]
-                for (let entry in import_map.object[entityType]){
-                    
-
-                    ///"liquids": { "O": { "liquid": "water_clean", "amount": [ 0, 100 ] }, "#": { "liquid": "jp8", "amount": [ 0, 100 ] } },
-                    entityEntries[entityType].push(import_map.object[entityType][entry])
-                    if (entityType == "items"){
-                        tMapArray.push([import_map.object[entityType][entry]["x"],import_map.object[entityType][entry]["y"],import_map.object[entityType][entry]["item"],import_map.object[entityType][entry]["repeat"]])
-                    }
-                    if (entityType == "place_item"){
-                        tMapArray.push([import_map.object[entityType][entry]["x"],import_map.object[entityType][entry]["y"],import_map.object[entityType][entry]["item"],import_map.object[entityType][entry]["repeat"]])
-                    }
-                    if (entityType == "place_items"){
-                        tMapArray.push([import_map.object[entityType][entry]["x"],import_map.object[entityType][entry]["y"],import_map.object[entityType][entry]["item"],import_map.object[entityType][entry]["chance"]])
-                    }
-                    if (entityType == "place_vehicles"){
-                        tMapArray.push([import_map.object[entityType][entry]["x"],import_map.object[entityType][entry]["y"],import_map.object[entityType][entry]["vehicle"],import_map.object[entityType][entry]["chance"],import_map.object[entityType][entry]["rotation"]])
-                    }
-                    if (entityType == "place_monsters"){
-                        tMapArray.push([import_map.object[entityType][entry]["x"],import_map.object[entityType][entry]["y"],import_map.object[entityType][entry]["monster"],import_map.object[entityType][entry]["chance"],import_map.object[entityType][entry]["density"]])
-                    }
-                    if (entityType == "place_loot"){
-                        tMapArray.push([import_map.object[entityType][entry]["x"],import_map.object[entityType][entry]["y"],import_map.object[entityType][entry]["item"],import_map.object[entityType][entry]["chance"],import_map.object[entityType][entry]["density"]])
-                    }
-                }
-                return tMapArray;
-            }
-        }
         function prepareEntitiesArrayForTiled(import_map,entityLayerType,all_tileDict){
             if (mapArrays.hasOwnProperty(entityLayerType)){
                 let tMapArray = mapArrays[entityLayerType]
@@ -1249,7 +1209,7 @@ function importMap(pathToMap,j){
                             };
                         continue;
                     };
-                    if(thiscell === " "){continue;}
+                    // if(thiscell === " "){continue;}
                     if(mapPalette[mapLayerName][thiscell] === undefined){continue;};
                     // items
                     if(mapLayerName == "items" && import_map.object.hasOwnProperty("items")){
@@ -1264,7 +1224,6 @@ function importMap(pathToMap,j){
                         }
                         continue;
                     }
-
 
                     if (mapPalette[mapLayerName].hasOwnProperty(thiscell)) {
                         if(typeof mapPalette[mapLayerName][thiscell] === "object"){
@@ -1287,12 +1246,14 @@ function importMap(pathToMap,j){
                         if(verbose >= 2){tiled.log(`( ${x}, ${y} ) '${thiscell}' > '${mapPalette[mapLayerName][thiscell]}' - '${newcell}'`)}
                         tMapArray.push([x,y,newcell])
                         continue;
-                    }
-                    if(all_tileDict.hasOwnProperty("unknown_tile")){
-                        // all_tileDict.unknown_tile.tile = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
-                        newcell = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
-                        tMapArray.push([x,y,newcell])
-                        continue;
+                    } else {
+                        if(all_tileDict.hasOwnProperty("unknown_tile")){
+                            // all_tileDict.unknown_tile.tile = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
+                            newcell = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
+                            tMapArray.push([x,y,newcell])
+                            continue;
+                        }
+
                     }
                 }
             }
@@ -1306,10 +1267,6 @@ function importMap(pathToMap,j){
             tiled.log(`preparing map array for layer '${mapLayerType}'`)
             mapArrays[mapLayerType] = prepareMapArrayForTiled(import_map,mapLayerType,all_tileDict)
         }
-        // for (let entityLayerType of entityLayerTypes){
-        //     tiled.log(`preparing object array for layer ${entityLayerType}`)
-        //     mapArrays[entityLayerType] = prepareEntitiesArrayForTiled(import_map,entityLayerType)
-        // }
 
         for(let layerType in import_map.object){
             if(no_id_objects.concat(mapLayerTypes).some(a => a === layerType)){continue}
@@ -1375,15 +1332,6 @@ function importMap(pathToMap,j){
                 if(verbose >= 1){ tiled.log(`editing layer '${og.name}' - '${layername}'`);}
 
 
-                // for (let entityLayerType of Object.keys(entityEntries)){
-                //     tiled.log(`entity entries layer name '${entityLayerType}'`);
-                //     tiled.log(`entity entry '${entityEntries[entityLayerType]}'`);
-                // }
-
-                // if(verbose >= 1){tiled.log(`entity entry: '${entityEntries[layername]}'`);}
-                // for(let av of entityEntries){
-                //     tiled.log(`entityentries: '${av}'`)
-                // }
                 for(let entity of import_map.object[layername]){
                     if(verbose >= 1){tiled.log(`entity entry: '${cte.flattenDict(entity)}'`);}
                     let obj = new MapObject()
@@ -1405,6 +1353,7 @@ function importMap(pathToMap,j){
                     if(layername == "place_items"){objname = entity.item;}
                     if(layername == "place_vehicles"){objname = entity.vehicle;}
                     if(layername == "place_monsters"){objname = entity.monster;}
+                    if(layername == "place_zones"){objname = entity.type;}
                     if(layername == "place_loot"){
                         if(entity.hasOwnProperty("item")){
                             objname = entity.item;
@@ -1572,12 +1521,17 @@ function exportMap(map){
 
         // palettes
         if(Object.keys(layer.properties()).includes("cdda_palette_0")){
+            if(verbose >= 1){tiled.log(`'${layer.name}' has palettes.`);};
             for(let p of Object.keys(layer.properties())){
                 if(p.match(/palette/)){
-                    if(verbose){tiled.log(`'${layer.name}' has palette '${layer.properties()[p]}'`);};
-                    mapEntry.object["palettes"].push(layer.properties()[p]);
+                    if(verbose >= 1){tiled.log(`'${layer.name}' has palette '${layer.properties()[p]}'`);};
+                    mapEntry.object.palettes.push(layer.properties()[p]);
                 };
             };
+        };
+        // fill_ter
+        if(Object.keys(layer.properties()).includes("fill_ter")){
+            mapEntry.object.fill_ter = layer.property("fill_ter")
         };
         // flags
         for(let flag of flags){
@@ -1618,10 +1572,7 @@ function exportMap(map){
             }
         }
 
-        let assigned_symbols_dict = {}; // symbol to cdda id dictionary, by layer
         let assigned_symbols = []; // array of used symbols
-
-        let assigned_cdda_id_symbols = {}; // cdda id to symbol dictionary, by cdda id
 
         let custom_symbols_dict = {}; // symbol: {layer: [cdda_ids]}
         let need_custom_assign = {};
@@ -1710,6 +1661,9 @@ function exportMap(map){
                     if(sublayer.property("cdda_layer") == "place_fields"){
                         if(obj.resolvedProperties().hasOwnProperty("cdda_id")){cdda_id_name = "field";}
                     }
+                    if(sublayer.property("cdda_layer") == "place_zones"){
+                        if(obj.resolvedProperties().hasOwnProperty("cdda_id")){cdda_id_name = "type";}
+                    }
                     if(sublayer.property("cdda_layer") == "place_loot"){
                         if(obj.resolvedProperties().hasOwnProperty("group")){
                             obj.resolvedProperties().group ? cdda_id_name = "group" : cdda_id_name = "item"
@@ -1723,7 +1677,7 @@ function exportMap(map){
                     json_entry.x = obj.width > 32 ? [Math.floor(obj.x/32),Math.floor((obj.x+obj.width)/32)] : Math.floor(obj.x/32)
                     json_entry.y = obj.height > 32 ? [Math.floor(obj.y/32),(Math.floor(obj.y+obj.height)/32)] : Math.floor(obj.y/32)
                     if(obj.hasOwnProperty("tile")){ // offset objects containing tiles because of 
-                        json_entry.y = obj.height > 32 ? [Math.floor((obj.y/32)-1),Math.floor(((obj.y+obj.height)/32))-1] : Math.floor((obj.y/32))-1
+                        json_entry.y = obj.height > 32 ? [Math.floor((obj.y/32))-1,Math.floor(((obj.y+obj.height)/32))-1] : Math.floor((obj.y/32))-1
                     }
                     if(!mapEntry.object.hasOwnProperty(sublayer.property("cdda_layer"))){
                         mapEntry.object[sublayer.property("cdda_layer")] = []
@@ -1833,9 +1787,9 @@ function exportMap(map){
 
         if(verbose >= 1){
             tiled.log("assigned symbols = "+assigned_symbols)
-            for (let d in mapEntry.object){ // cleanup empty 'objects'
-                if (mapEntry.object[d] == "" || (typeof mapEntry.object[d] === "object" &&  Object.keys(mapEntry.object[d]).length === 0)){ delete mapEntry.object[d]; };
-            };
+        };
+        for (let d in mapEntry.object){ // cleanup empty 'objects'
+            if (mapEntry.object[d].length === 0){ delete mapEntry.object[d]; };
         };
         return mapEntry;
     }
@@ -1845,6 +1799,7 @@ function exportMap(map){
     
     // delete unused fields from map entry
     // tiled.log(mapEntries[0].object.rows[4])
+    tiled.log(`Map export complete`)
     return mapEntries.reverse();
 }
 
@@ -1980,6 +1935,7 @@ class CDDAMapEntryImport {
             "place_nested": entry['object']["place_nested"],
             "place_items": entry['object']["place_items"],
             "place_item": entry['object']["place_item"],
+            "place_zones": entry['object']["place_zones"],
             "place_loot": entry['object']["place_loot"],
             "sealed_item": entry['object']["sealed_item"],
             "computers": entry['object']["computers"],
@@ -2004,6 +1960,7 @@ class CDDAMapEntry {
             "terrain": {},
             "furniture": {},
             "place_loot": [],
+            "place_zones": [],
             "items": [],
             "place_item": [],
             "place_items": [],
@@ -2039,7 +1996,7 @@ var CDDAMapFormat = {
         var m = exportMap(map);
 
         var file = new TextFile(fileName, TextFile.WriteOnly);
-        file.write(JSON.stringify(m, null, 2));
+        file.write(JSON.stringify(m, null, `\t`));
         file.codec = "UTF-8"
         file.commit();
     }
