@@ -1677,7 +1677,9 @@ function exportMap(map){
                     json_entry.x = obj.width > 32 ? [Math.floor(obj.x/32),Math.floor((obj.x+obj.width)/32)] : Math.floor(obj.x/32)
                     json_entry.y = obj.height > 32 ? [Math.floor(obj.y/32),(Math.floor(obj.y+obj.height)/32)] : Math.floor(obj.y/32)
                     if(obj.hasOwnProperty("tile")){ // offset objects containing tiles because of 
-                        json_entry.y = obj.height > 32 ? [Math.floor((obj.y/32))-1,Math.floor(((obj.y+obj.height)/32))-1] : Math.floor((obj.y/32))-1
+                        if(obj.tile != null){
+                            json_entry.y = obj.height > 32 ? [Math.floor((obj.y/32))-1,Math.floor(((obj.y+obj.height)/32))-1] : Math.floor((obj.y/32))-1
+                        }
                     }
                     if(!mapEntry.object.hasOwnProperty(sublayer.property("cdda_layer"))){
                         mapEntry.object[sublayer.property("cdda_layer")] = []
