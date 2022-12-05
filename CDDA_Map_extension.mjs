@@ -304,6 +304,7 @@ function addSpriteToFavotires(){
     tiled.open(originalAsset.fileName)
 }
 function add_cdda_id_to_unknowns(cdda_id){
+    if(cdda_id == `t_null`){return}
     // tiled.log(`Working on Unkown Tiles`)
     
     if(!cache.hasOwnProperty(config.pathToCustomTileset)){cache[config.pathToCustomTileset] = TSXread(config.pathToCustomTileset)}
