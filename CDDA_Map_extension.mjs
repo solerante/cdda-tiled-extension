@@ -45,6 +45,7 @@ var overwriteExisting = true;
 var config = {};
 var mainConfig = {};
 var imageCache = {};
+var cache = {};
 
 const cte = { // helper functions
     filePicker: function filePicker(func,filepath){
@@ -303,46 +304,40 @@ function addSpriteToFavotires(){
     tiled.open(originalAsset.fileName)
 }
 function add_cdda_id_to_unknowns(cdda_id){
-    let customTiles = tiled.open(config.pathToCustomTileset)
-    // let customTilesData = TSXread(config.pathToCustomTileset)
-    let unknown_tile;
-    for(let tile of customTiles.tiles){
-        if(tile.property("cdda_id") == "unknown_tile"){
-            unknown_tile = tile
+    // tiled.log(`Working on Unkown Tiles`)
+    
+    if(!cache.hasOwnProperty(config.pathToCustomTileset)){cache[config.pathToCustomTileset] = TSXread(config.pathToCustomTileset)}
+    let tsxTiles = cache[config.pathToCustomTileset] //  filepath returns { tiles: { id: { class, probabiltiy, properties: { property: value }}}}
+    let unknown_tile_image_path;
+    for ( let tsxTileID in tsxTiles.tiles ){
+        if(tsxTiles.tiles[tsxTileID].properties.cdda_id == "unknown_tile"){
+            unknown_tile_image_path = FileInfo.toNativeSeparators(`${FileInfo.path(config.pathToCustomTileset)}/${tsxTiles.tiles[tsxTileID].image.source}`)
+            // tiled.log(`path to unknown tile image ${unknown_tile_image_path}`)
             break
         }
     }
-    let pathToUnknownTileImage = unknown_tile.imageFileName
-    tiled.close(customTiles)
-    
+
+    if(File.exists(config.pathToUnknownsTSX)){
+        let unknowntsxtiles = TSXread(config.pathToUnknownsTSX)
+        for ( let tsxTileID in unknowntsxtiles.tiles ){
+            if(unknowntsxtiles.tiles[tsxTileID].properties.cdda_id == cdda_id){return tiled.open(config.pathToUnknownsTSX).findTile(tsxTileID);}
+        }
+    }
     let unknowns;
-    if(!config.hasOwnProperty(pathToUnknownsTSX)){
+    if(!config.hasOwnProperty(`pathToUnknownsTSX`)){
         config.pathToUnknownsTSX = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+"/unknown_tiles.tsx")
         cte.updateConfig()
     }
     if(!File.exists(config.pathToUnknownsTSX)){
+        tiled.log(`Generating 'Unknown Tiles' Tileset`)
         unknowns = new Tileset("Unknown Tiles");
-        tiled.tilesetFormat("tsx").write(favorites,config.pathToUnknownsTSX);
+        tiled.tilesetFormat("tsx").write(unknowns,config.pathToUnknownsTSX);
     }
-    for(let asset of tiled.openAssets){
-        if(asset.fileName == config.pathToUnknownsTSX){
-            unknowns = asset
-            break
-        }
-    }
-    if(unknowns === undefined){
-        unknowns = tiled.open(config.pathToUnknownsTSX);
-    }
-
-    if(!imageCache.hasOwnProperty(`unknown_tile_image`)){
-        imageCache.unknown_tile_image = new Image(pathToUnknownTileImage);
-    }
-    let img = imageCache.unknown_tile_image
-
+    unknowns = tiled.open(config.pathToUnknownsTSX);
     let newUnknownTile = unknowns.addTile()
     newUnknownTile.setProperty("cdda_id",cdda_id)
-    newUnknownTile.setImage(img)
-    if(verbose >= 1){tiled.log(`'${tile.property(`cdda_id`)}' added to unknowns.`)}
+    newUnknownTile.imageFileName = unknown_tile_image_path
+    if(verbose >= 1){tiled.log(`'${newUnknownTile.property(`cdda_id`)}' added to unknowns.`)}
 
     tiled.tilesetFormat("tsx").write(unknowns,config.pathToUnknownsTSX);
     // tiled.close(unknowns)
@@ -362,8 +357,7 @@ function generateMetaTileset(){
             if( verbose >= 2){tiled.log(`adding '${filepath}' to custom tileset.`);}
             let tile = tileset.addTile();
             tile.setProperty("cdda_id",FileInfo.baseName(filepath))
-            let img = new Image(filepath);
-            tile.setImage(img);
+            tile.imageFileName = filepath
         }
         tiled.tilesetFormat("tsx").write(tileset,config.pathToCustomTileset)
     } else {
@@ -977,7 +971,7 @@ function importMap(pathToMap,j){
             }
         }
         if (import_map.object.hasOwnProperty("rows")){
-            mapArray = import_map['object']['rows'];
+            mapArray = import_map.object.rows;
         }
 
         // init mapPallete
@@ -1119,8 +1113,8 @@ function importMap(pathToMap,j){
 
         // get tile locations known for cdda ids in map
         let tsxs = getRecursiveFilePathsInFolder(config.pathToChosenTilesetTSX);
-        if(config.hasOwnProperty(`pathToUnknownsTSX`)){tsxs.push(config.pathToUnknownsTSX)} // add custom tsx to the mix
         if(config.hasOwnProperty(`pathToCustomTileset`)){tsxs.push(config.pathToCustomTileset)} // add custom tsx to the mix
+        if(config.hasOwnProperty(`pathToUnknownsTSX`)){if(File.exists(config.pathToUnknownsTSX)){tsxs.push(config.pathToUnknownsTSX)}} // add custom tsx to the mix
         
         for(let filepath of tsxs){
             if (!filepath.match(/\.tsx$/)){continue;};
@@ -1167,9 +1161,9 @@ function importMap(pathToMap,j){
 
 
         for (let entityLayerType of entityLayerTypes){
-            tiled.log(`mapArrays["${entityLayerType}"]`);
+            if(verbose >=1){tiled.log(`mapArrays["${entityLayerType}"]`);}
             for (let e in mapArrays[entityLayerType]){
-                tiled.log(`${mapArrays[entityLayerType][e]}`);
+                if(verbose >=1){tiled.log(`${mapArrays[entityLayerType][e]}`);}
             };
         };
 
@@ -1191,7 +1185,7 @@ function importMap(pathToMap,j){
         }
         // prepare map for tiled
         function prepareMapArrayForTiled(import_map,mapLayerName,all_tileDict){
-            if (verbose){tiled.log(`working on map layer '${mapLayerName}'`);}
+            if (verbose >= 1){tiled.log(`working on map layer '${mapLayerName}'`);}
             // if (mapLayerName == "fill_ter"){return;};
             let tMapArray = []
             if (!mapPalette.hasOwnProperty(mapLayerName) && mapLayerName != "fill_ter"){tiled.log(`missing ${mapLayerName}`);return;}
@@ -1235,10 +1229,20 @@ function importMap(pathToMap,j){
                                     break;
                                 }
                             }
-                        } else{
+                        } else {
                             if(all_tileDict.hasOwnProperty(mapPalette[mapLayerName][thiscell])){
-                                if(verbose >= 1){tiled.log(`\t( ${x}, ${y} )\tAssigning ID '${mapPalette[mapLayerName][thiscell]}' TO symbol '${thiscell}' with tile '${all_tileDict[mapPalette[mapLayerName][thiscell]].tile}'`);}
                                 newcell = all_tileDict[mapPalette[mapLayerName][thiscell]].tile
+                                if(all_tileDict[mapPalette[mapLayerName][thiscell]].tile == undefined){
+                                    if(all_tileDict.hasOwnProperty("unknown_tile")){
+                                        tiled.log(`unknown tile to be assigned to cdda id '${mapPalette[mapLayerName][thiscell]}'`)
+                                        // all_tileDict.unknown_tile.tile = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
+                                        newcell = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
+                                        // tMapArray.push([x,y,newcell])
+                                        // continue;
+                                    }
+                                    // newcell = all_tileDict.unknown_tile.tile
+                                }
+                                if(verbose >= 1){tiled.log(`\t( ${x}, ${y} )\tAssigning ID '${mapPalette[mapLayerName][thiscell]}' TO symbol '${thiscell}' with tile '${newcell}'`);}
                             } else {
                                 if(verbose >= 2){tiled.log(`no sprite for ${mapPalette[mapLayerName][thiscell]}`)}
                             }
@@ -1248,12 +1252,12 @@ function importMap(pathToMap,j){
                         continue;
                     } else {
                         if(all_tileDict.hasOwnProperty("unknown_tile")){
+                            tiled.log(`unknown tile assigned to cdda id.`)
                             // all_tileDict.unknown_tile.tile = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
                             newcell = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
                             tMapArray.push([x,y,newcell])
                             continue;
                         }
-
                     }
                 }
             }
@@ -1676,7 +1680,7 @@ function exportMap(map){
                     }
                     json_entry.x = obj.width > 32 ? [Math.floor(obj.x/32),Math.floor((obj.x+obj.width)/32)] : Math.floor(obj.x/32)
                     json_entry.y = obj.height > 32 ? [Math.floor(obj.y/32),(Math.floor(obj.y+obj.height)/32)] : Math.floor(obj.y/32)
-                    if(obj.hasOwnProperty("tile")){ // offset objects containing tiles because of 
+                    if(obj.hasOwnProperty("tile")){ // offset objects containing tiles
                         if(obj.tile != null){
                             json_entry.y = obj.height > 32 ? [Math.floor((obj.y/32))-1,Math.floor(((obj.y+obj.height)/32))-1] : Math.floor((obj.y/32))-1
                         }
@@ -1806,6 +1810,7 @@ function exportMap(map){
 }
 
 function TSXread(filepath){ // { tiles: { id: { properties: { property: value }}}}
+    if(verbose >=1){tiled.log(`tsk read filepath '${filepath}'`)}
     const file = new TextFile(filepath, TextFile.ReadOnly)
     file.codec = "UTF-8"
     const file_data = file.readAll()
@@ -1823,7 +1828,7 @@ function TSXread(filepath){ // { tiles: { id: { properties: { property: value }}
             xmlDictionary["tiles"][tileid]["class"] = xmlentry.match(/class\=.*?\"(.*?)\"/)
         }
         if ( xmlentry.match(/probability\=.*?\"(.*?)\"/) ) {
-            xmlDictionary["tiles"][tileid]["probability"] = xmlentry.match(/probability\=.*?\"(.*?)\"/)
+            xmlDictionary["tiles"].tileid["probability"] = xmlentry.match(/probability\=.*?\"(.*?)\"/)
         }
 
         if ( xmlentry.match(/<properties/) ) {
@@ -1831,6 +1836,19 @@ function TSXread(filepath){ // { tiles: { id: { properties: { property: value }}
                 let propertyKeyValue = property.match(/<property.*?name.*?\"(.*?)\".*?value.*?\"(.*?)\"/)
                 xmlDictionary["tiles"][tileid]["properties"][propertyKeyValue[1]] = propertyKeyValue[2]
                 if(verbose >= 2){tiled.log(`entry id: ${tileid} property name: ${propertyKeyValue[1]} cdda id (property value): ${propertyKeyValue[2]}`);}
+            }
+        }
+        if ( xmlentry.match(/<image/) ) {
+            xmlDictionary.tiles[tileid].image = {}
+            if ( xmlentry.match(/<image.*?source/) ) {
+                let imagedata = xmlentry.match(/<image.*?(?:width=\"(\d+)\".*?)?(?:height=\"(\d+)\".*?)?source=\"(.*?)\"/)
+                xmlDictionary.tiles[tileid].image.width = imagedata[1]
+                xmlDictionary.tiles[tileid].image.height = imagedata[2]
+                xmlDictionary.tiles[tileid].image.source = imagedata[3]
+            }
+            if(xmlentry.match(/data encoding/)){
+                xmlDictionary.tiles[tileid].image.format = xmlentry.match(/image.*?format=\"(.*?\")/)[1]
+                xmlDictionary.tiles[tileid].image.data = xmlentry.match(/data encoding.*?>(.*)?</)[1]
             }
         }
     }
@@ -1919,32 +1937,32 @@ class CDDAMapEntryImport {
         this.fill_ter = entry['object']['fill_ter'];
         this.weight = entry['weigth'];
         this.object = { // place_ uses x,y otherwise uses tile symbol
-            "flags": entry['object']['flags'],
-            "fill_ter": entry['object']['fill_ter'],
-            "palettes": entry['object']['palettes'],
-            "predecessor_mapgen": entry['object']['predecessor_mapgen'],
-            "distribution": entry['object']["distribution"],
-            "rows": entry['object']['rows'],
-            "terrain":entry['object']["terrain"],
-            "furniture": entry['object']["furniture"],
-            "items": entry['object']["items"],
-            "place_computers": entry['object']["place_computers"],
-            "place_monsters": entry['object']["place_monsters"],
-            "place_vehicles": entry['object']["place_vehicles"],
-            "place_liquids": entry['object']["place_liquids"],
-            "place_corpses": entry['object']["place_corpses"],
-            "place_rubble": entry['object']["place_rubble"],
-            "place_nested": entry['object']["place_nested"],
-            "place_items": entry['object']["place_items"],
-            "place_item": entry['object']["place_item"],
-            "place_zones": entry['object']["place_zones"],
-            "place_loot": entry['object']["place_loot"],
-            "sealed_item": entry['object']["sealed_item"],
-            "computers": entry['object']["computers"],
-            "graffiti": entry['object']["graffiti"],
-            "toilets": entry['object']['toilets'],
-            "traps": entry['object']["traps"],
-            "zones": entry['object']["zones"]
+            "flags": entry.object['flags'],
+            "fill_ter": entry.object['fill_ter'],
+            "palettes": entry.object['palettes'],
+            "predecessor_mapgen": entry.object['predecessor_mapgen'],
+            "distribution": entry.object["distribution"],
+            "rows": entry.object['rows'],
+            "terrain":entry.object["terrain"],
+            "furniture": entry.object["furniture"],
+            "items": entry.object["items"],
+            "place_computers": entry.object["place_computers"],
+            "place_monsters": entry.object["place_monsters"],
+            "place_vehicles": entry.object["place_vehicles"],
+            "place_liquids": entry.object["place_liquids"],
+            "place_corpses": entry.object["place_corpses"],
+            "place_rubble": entry.object["place_rubble"],
+            "place_nested": entry.object["place_nested"],
+            "place_items": entry.object["place_items"],
+            "place_item": entry.object["place_item"],
+            "place_zones": entry.object["place_zones"],
+            "place_loot": entry.object["place_loot"],
+            "sealed_item": entry.object["sealed_item"],
+            "computers": entry.object["computers"],
+            "graffiti": entry.object["graffiti"],
+            "toilets": entry.object['toilets'],
+            "traps": entry.object["traps"],
+            "zones": entry.object["zones"]
         };
     };
 };
