@@ -4,6 +4,7 @@
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
 var verbose = false
+var use_pretty_symbols = true
 
 const pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
 const pathToExtras = FileInfo.toNativeSeparators(tiled.extensionsPath + "/cdda_map_extension_extras");
@@ -16,7 +17,25 @@ const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN","ALLOW_TERRAIN_UNDER_OTHER_DAT
 const utf_ramps = {
     "utf8_shortlist" : `#$%&'()*+,-.:;<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¹º»¼½¾¿0123456789`,
     "greyscale_ramp" : `$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,^'.`,
-    "specific" : {
+    "us_keyboard" : {
+        "t_soil" : `|`,
+        "wall" : `|(){}[]!I`,
+        "fence" : `#H`,
+        "door" : `D`,
+        "window" : `o`,
+        "pavement" : `'^,:;_-+`,
+        "sidewalk" : `'^,:;_-+`,
+        "floor" : `'^,:;_-+`,
+        "_up" : `<^`,
+        "_down" : `>v`,
+        "water" : `~w`,
+        "box" : `b`,
+        "sandbag" : `s`,
+        "telep" : `o`,
+        "table" : `T`,
+        "chair" : `h`
+    },
+    "pretty" : {
         "t_soil" : `░`,
         "wall" : `▓▒░$@B%&WM#/|(){}[]!I`,
         "fence" : `‡ǂ#H`,
@@ -1754,10 +1773,14 @@ function exportMap(map){
             // newly defined symbol
             let symbolstouse = ""
             let cdda_ids_in_tile = cte.flattenDict(coordinate_assignments[coordinate])
-            for(let searchTerm in utf_ramps.specific){
+            let symbol_group_to_use = `pretty`
+            if(!use_pretty_symbols){
+                symbol_group_to_use = `us_keyboard`
+            }
+            for(let searchTerm in utf_ramps[symbol_group_to_use]){
                 let re = new RegExp(`(${searchTerm})`)
                 if(cdda_ids_in_tile.join("").match(re)){
-                    symbolstouse = utf_ramps.specific[searchTerm]
+                    symbolstouse = utf_ramps[symbol_group_to_use][searchTerm]
                 }
             }
             symbolstouse += utf_ramps.utf8_shortlist
@@ -2069,10 +2092,15 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     tiled.log(`!!!!!end file: ${filepath}`)
     // findTileInTilesets(cdda_id_tofind)
 });
-//test action for debug
+// toggle verbose mode
 const action_cdda_verbose = tiled.registerAction("CustomAction_cdda_verbose", function(action_cdda_verbose) {
     tiled.log(action_cdda_verbose.text + " was " + (action_cdda_verbose.checked ? "checked" : "unchecked"))
     action_cdda_verbose.checked ? verbose = true : verbose = false
+});
+// toggle unicode character usage
+const action_cdda_unicode_set_toggle = tiled.registerAction("CustomAction_cdda_unicode_set_toggle", function(action_cdda_unicode_set_toggle) {
+    tiled.log(action_cdda_unicode_set_toggle.text + " was " + (action_cdda_unicode_set_toggle.checked ? "checked" : "unchecked"))
+    action_cdda_unicode_set_toggle.checked ? use_pretty_symbols = true : use_pretty_symbols = false
 });
 
 action_importTileset.text = "Import CDDA tileset"
@@ -2087,6 +2115,9 @@ action_add_sprite_to_favotires.shortcut = "CTRL+SHIFT+F"
 action_changeProjectPath.text = "Change project path"
 action_cdda_verbose.text = "Verbose Logging (slower performance)"
 action_cdda_verbose.checkable = true
+action_cdda_unicode_set_toggle.text = "Pretty symbols for map export"
+action_cdda_unicode_set_toggle.checkable = true
+action_cdda_unicode_set_toggle.checked = true
 
 action_cdda_debug.text = "run associated debug action"
 action_cdda_debug.shortcut = "CTRL+D"
@@ -2104,6 +2135,7 @@ tiled.extendMenu("File", [
 tiled.extendMenu("Map", [
     { separator: true },
     { action: "CustomAction_newCDDAGroupLayer", after: "Terrain Sets" },
+    { action: "CustomAction_cdda_unicode_set_toggle", after: "Terrain Sets" },
     { separator: true }
 ]);
 tiled.extendMenu("Edit", [
