@@ -48,17 +48,43 @@ var imageCache = {};
 var cache = {};
 
 const cte = { // helper functions
-    filePicker: function filePicker(func,filepath){
-        let dialog = new Dialog()
+    filePicker: (filepath, title) => {
+        let dialog = new Dialog();
+        title ? dialog.windowTitle = title : dialog.windowTitle;
+        let cont = false;
         // if(dialog===undefined){dialog = new Dialog();}
-        filepath == undefined ? filepath = FileInfo.fromNativeSeparators(mainconfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath)
+        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath);
         let newFilepath;
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
         fileEdit.fileUrl = filepath;
-        tiled.log(fileEdit.fileUrl)
-        tiled.log(fileEdit.fileUrl.toString())
-        tiled.log(filepath)
+        let acceptButton = dialog.addButton(`Accept`);
+        let cancelButton = dialog.addButton(`Cancel`);
+        acceptButton.clicked.connect(function () {
+            dialog.accept();
+        });
+        cancelButton.clicked.connect(function () {
+            dialog.reject();
+        });
+        dialog.accepted.connect(() => {
+            newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\/\//, "");
+            cont = true;
+        });
+        dialog.show();
+        dialog.exec();
+        return cont ? newFilepath : false;
+    },
+    filePicker_old: function filePicker_old(func,filepath){
+        let dialog = new Dialog()
+        // if(dialog===undefined){dialog = new Dialog();}
+        filepath == undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath)
+        let newFilepath;
+        let fileEdit = dialog.addFilePicker();
+        dialog.addNewRow();
+        fileEdit.fileUrl = filepath;
+        // tiled.log(fileEdit.fileUrl)
+        // tiled.log(fileEdit.fileUrl.toString())
+        // tiled.log(filepath)
         let acceptButton = dialog.addButton(`Accept`);
         let cancelButton = dialog.addButton(`Cancel`);
         acceptButton.clicked.connect(function(){
@@ -224,7 +250,9 @@ function initialize(){
     
         if( !File.exists(pathToConfig)){
             tiled.log(`no config file found at ${pathToConfig}. Making new config file.`) 
-            let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+            // let givenPathToCDDA = FileInfo.toNativeSeparators(tiled.prompt("Path to CDDA folder:",config.pathToCDDA,"CDDA Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+            let givenPathToCDDA = cte.filePicker(config.pathToCDDA,`Path to CDDA folder`)
+            if(!givenPathToCDDA){return}
             config = new extensionConfig(mainConfig.pathToProject,givenPathToCDDA);
             // config.pathToExtras = pathToExtras;
             cte.updateConfig()
@@ -240,9 +268,11 @@ function initialize(){
 }
 function changeProjectPath(){
     var loggedPathToProject = mainConfig.pathToProject
-    var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:",loggedPathToProject,"Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
-    if (pathToProject.match(/\.tiled-project$/)){pathToProject = FileInfo.path(pathToProject)}
+    // var pathToProject = FileInfo.toNativeSeparators(tiled.prompt("Path to Tile project:",loggedPathToProject,"Tiled Project Path").replace(/(^("|'|))|("|'|\\|\\\\|\/)$/g,"").replace("~",pathToUserFolder))
+    var pathToProject = cte.filePicker(loggedPathToProject,"Path to Tiled project")
     if(!pathToProject){return false;}
+    pathToProject = FileInfo.toNativeSeparators(pathToProject)
+    if (pathToProject.match(/\.tiled-project$/)){pathToProject = FileInfo.path(pathToProject)}
     if(pathToProject && pathToProject != loggedPathToProject){
         mainConfig.pathToProject = pathToProject;
         updateMainConfig();
@@ -879,7 +909,7 @@ Don't forget to SAVE YOUR MAP`,true)
     }
     let backButton = dialog.addButton(`Back`);
     backButton.clicked.connect(function(){
-        cte.filePicker(importMapChoiceDialog,filepath)
+        cte.filePicker_old(importMapChoiceDialog,filepath)
         dialog.reject();
     })
     
@@ -2032,7 +2062,7 @@ const action_importTileset = tiled.registerAction("CustomAction_importTileset", 
     initialize()
     importTilesets()
 });
-//Create New Map
+// Create New Map
 const action_createNewMap = tiled.registerAction("CustomAction_createNewMap", function(action_createNewMap) {
     tiled.log(`${action_createNewMap.text} was run.`)
     initialize()
@@ -2043,37 +2073,37 @@ const action_newCDDAGroupLayer = tiled.registerAction("CustomAction_newCDDAGroup
     tiled.log(`${action_newCDDAGroupLayer.text} was run.`)
     initialize() ? addNewOmTerrainToMap() : tiled.log(`Failed to initialize.`)
 });
-//Import CDDA Map
+// Import CDDA Map
 const action_importMap = tiled.registerAction("CustomAction_importMap", function(action_importMap) {
     tiled.log(`${action_importMap.text} was run.`)
     initialize()
     if(config.pathToLastImportMap == undefined){config.pathToLastImportMap = FileInfo.toNativeSeparators(config.pathToCDDA + "/data/json/mapgen/house/house_detatched1.json")}
     // cte.filePicker(importMap,config.pathToLastImportMap)
-    cte.filePicker(importMapChoiceDialog,config.pathToLastImportMap)
+    cte.filePicker_old(importMapChoiceDialog,config.pathToLastImportMap)
 });
-//Export CDDA Map
+// Export CDDA Map
 const action_exportMap = tiled.registerAction("CustomAction_CDDA_map_exportMap", function(action_exportMap) {
     tiled.log(`${action_exportMap.text} was run.`)
     initialize()
     exportMap()
 });
-//Find tile in tileset by CDDA ID
+// Find tile in tileset by CDDA ID
 const action_findTileInTilemap = tiled.registerAction("CustomAction_CDDA_map_findTileInTileset", function(action_findTileInTilemap) {
     tiled.log(`${action_findTileInTilemap.text} was run.`)
     initialize() ? findTileInTilesets() : tiled.log("Action aborted.")
 });
-//Add sprite to favorites tileset
+// Add sprite to favorites tileset
 const action_add_sprite_to_favotires = tiled.registerAction("CustomAction_CDDA_add_sprite_to_favotires", function(action_add_sprite_to_favotires) {
     tiled.log(`${action_add_sprite_to_favotires.text} was run.`)
     initialize() ? addSpriteToFavotires() : tiled.log("Action aborted.")
     
 });
-//change path to project
+// change path to project
 const action_changeProjectPath = tiled.registerAction("CustomAction_changeProjectPath", function(action_changeProjectPath) {
     tiled.log(`${action_changeProjectPath.text} was run.`)
     changeProjectPath()
 });
-//test action for debug
+// test action for debug
 const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", function(action_cdda_debug) {
     tiled.log(`${action_cdda_debug.text} was run.`)
     // tiled.log(tiled.actions)
@@ -2081,14 +2111,14 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     initialize()
     let filepath = config.pathToTMX
     // let dialog = new Dialog()
-    filepath = cte.filePicker(importMapChoiceDialog,filepath)
+    filepath = cte.filePicker(filepath)
     // filepath = filePicker(filepath)
     // cte.filePicker(filepath);
     // dialog.show();
     tiled.log(`!!!!!end file: ${filepath}`)
     // findTileInTilesets(cdda_id_tofind)
 });
-//test action for debug
+// toggle debug
 const action_cdda_verbose = tiled.registerAction("CustomAction_cdda_verbose", function(action_cdda_verbose) {
     tiled.log(action_cdda_verbose.text + " was " + (action_cdda_verbose.checked ? "checked" : "unchecked"))
     action_cdda_verbose.checked ? verbose = true : verbose = false
