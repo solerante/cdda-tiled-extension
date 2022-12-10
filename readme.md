@@ -1,3 +1,5 @@
+oops, I've undone some features in a bad merge :grimace: hang on.
+
 # Tiled extension for Cataclysm: Dark Days Ahead
 
 Add the extension and extras folder to your [Tiled](https://www.mapeditor.org/) extensions folder.
