@@ -4,6 +4,7 @@
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
 var verbose = false
+var use_pretty_symbols = true
 
 const pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
 const pathToExtras = FileInfo.toNativeSeparators(tiled.extensionsPath + "/cdda_map_extension_extras");
@@ -16,7 +17,25 @@ const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN","ALLOW_TERRAIN_UNDER_OTHER_DAT
 const utf_ramps = {
     "utf8_shortlist" : `#$%&'()*+,-.:;<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¹º»¼½¾¿0123456789`,
     "greyscale_ramp" : `$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,^'.`,
-    "specific" : {
+    "us_keyboard" : {
+        "t_soil" : `|`,
+        "wall" : `|(){}[]!I`,
+        "fence" : `#H`,
+        "door" : `D`,
+        "window" : `o`,
+        "pavement" : `'^,:;_-+`,
+        "sidewalk" : `'^,:;_-+`,
+        "floor" : `'^,:;_-+`,
+        "_up" : `<^`,
+        "_down" : `>v`,
+        "water" : `~w`,
+        "box" : `b`,
+        "sandbag" : `s`,
+        "telep" : `o`,
+        "table" : `T`,
+        "chair" : `h`
+    },
+    "pretty" : {
         "t_soil" : `░`,
         "wall" : `▓▒░$@B%&WM#/|(){}[]!I`,
         "fence" : `‡ǂ#H`,
@@ -47,6 +66,21 @@ var mainConfig = {};
 var imageCache = {};
 
 const cte = { // helper functions
+    replaceNewlines: function replaceNewlines(str) {
+        // Use the regular expression to find objects with 4 or fewer entries
+        var regex = /\{\n(?:.*?,(\n)){0,4}(?:.*?(\n)).*?},?/gm;
+        var matches = str.match(regex);
+      
+        // Replace newlines in each match with spaces
+        if (matches) {
+          matches.forEach((match) => {
+            str = str.replace(match, match.replace(/\n\t*/g, " ")).trim();
+          });
+        }
+      
+        // Return the updated string
+        return str;
+    },
     filePicker: function filePicker(func,filepath){
         let dialog = new Dialog()
         // if(dialog===undefined){dialog = new Dialog();}
@@ -1754,10 +1788,14 @@ function exportMap(map){
             // newly defined symbol
             let symbolstouse = ""
             let cdda_ids_in_tile = cte.flattenDict(coordinate_assignments[coordinate])
-            for(let searchTerm in utf_ramps.specific){
+            let symbol_group_to_use = `pretty`
+            if(!use_pretty_symbols){
+                symbol_group_to_use = `us_keyboard`
+            }
+            for(let searchTerm in utf_ramps[symbol_group_to_use]){
                 let re = new RegExp(`(${searchTerm})`)
                 if(cdda_ids_in_tile.join("").match(re)){
-                    symbolstouse = utf_ramps.specific[searchTerm]
+                    symbolstouse = utf_ramps[symbol_group_to_use][searchTerm]
                 }
             }
             symbolstouse += utf_ramps.utf8_shortlist
@@ -1998,8 +2036,11 @@ var CDDAMapFormat = {
         var m = exportMap(map);
 
         var file = new TextFile(fileName, TextFile.WriteOnly);
-        file.write(JSON.stringify(m, null, `\t`));
-        file.codec = "UTF-8"
+        let text = JSON.stringify(m, null, `\t`);
+        text = cte.replaceNewlines(text)
+        // text = text.replace(/\n/gm, r => "")
+        file.write(text);
+        file.codec = "UTF-8";
         file.commit();
     }
 };
@@ -2069,10 +2110,15 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     tiled.log(`!!!!!end file: ${filepath}`)
     // findTileInTilesets(cdda_id_tofind)
 });
-//test action for debug
+// toggle verbose mode
 const action_cdda_verbose = tiled.registerAction("CustomAction_cdda_verbose", function(action_cdda_verbose) {
     tiled.log(action_cdda_verbose.text + " was " + (action_cdda_verbose.checked ? "checked" : "unchecked"))
     action_cdda_verbose.checked ? verbose = true : verbose = false
+});
+// toggle unicode character usage
+const action_cdda_unicode_set_toggle = tiled.registerAction("CustomAction_cdda_unicode_set_toggle", function(action_cdda_unicode_set_toggle) {
+    tiled.log(action_cdda_unicode_set_toggle.text + " was " + (action_cdda_unicode_set_toggle.checked ? "checked" : "unchecked"))
+    action_cdda_unicode_set_toggle.checked ? use_pretty_symbols = true : use_pretty_symbols = false
 });
 
 action_importTileset.text = "Import CDDA tileset"
@@ -2087,6 +2133,9 @@ action_add_sprite_to_favotires.shortcut = "CTRL+SHIFT+F"
 action_changeProjectPath.text = "Change project path"
 action_cdda_verbose.text = "Verbose Logging (slower performance)"
 action_cdda_verbose.checkable = true
+action_cdda_unicode_set_toggle.text = "Pretty symbols for map export"
+action_cdda_unicode_set_toggle.checkable = true
+action_cdda_unicode_set_toggle.checked = true
 
 action_cdda_debug.text = "run associated debug action"
 action_cdda_debug.shortcut = "CTRL+D"
@@ -2104,6 +2153,7 @@ tiled.extendMenu("File", [
 tiled.extendMenu("Map", [
     { separator: true },
     { action: "CustomAction_newCDDAGroupLayer", after: "Terrain Sets" },
+    { action: "CustomAction_cdda_unicode_set_toggle", after: "Terrain Sets" },
     { separator: true }
 ]);
 tiled.extendMenu("Edit", [
@@ -2116,5 +2166,99 @@ tiled.extendMenu("Help", [
     { separator: true },
     { action: "CustomAction_cdda_verbose", after: "Terrain Sets" },
     { action: "CustomAction_cdda_debug", after: "Terrain Sets" },
+    { separator: true }
+]);
+
+
+//-----------------------------------
+const watchForStateChange = function (widget, stateKey, state) {
+
+    if (widget.valueChanged) {
+        widget.valueChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} value is ${newValue}`);
+            state[stateKey] = widget.value;
+        });
+    }
+    if (widget.colorChanged) {
+        widget.colorChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} color is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+    if (widget.textChanged) {
+        widget.textChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} text is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+    if (widget.currentTextChanged) {
+        widget.currentTextChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} text is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+
+
+    if (widget.stateChanged) {
+        widget.stateChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} value is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+};
+
+// https://github.com/dogboydog/tiled-dialog-scripts/blob/main/SelectFile.mjs
+var SelectFileDialog = {};
+// import {DialogUtils} from 'DialogUtils.mjs';
+SelectFileDialog.testPromptAction = tiled.registerAction("SelectFileDialog", function (action) {
+
+    var dialog = new Dialog();
+    dialog.addHeading("Select your file please.", true);
+    var filePicker1 = dialog.addFilePicker("Your file: ");
+    filePicker1.fileUrlChanged.connect((newUrl) => {
+        tiled.log(`The new file is ${filePicker1.fileUrl}`);
+    });
+    var secondDialog;
+    var submitButton = dialog.addButton("Submit");
+    submitButton.clicked.connect(() => {
+        if (!secondDialog) {
+            var fileSchemeReplace = tiled.platform == "windows" ? "file:///" : "file://";
+            var fileUrl = filePicker1.fileUrl.toString().replace(fileSchemeReplace, "");
+            var text = '';
+            secondDialog = new Dialog();
+            secondDialog.addLabel("File Contents (Excerpt)");
+            secondDialog.addSeparator();
+
+            try {
+                var textFile = new TextFile(fileUrl, TextFile.ReadOnly);
+                text = textFile.readAll();
+                // take an excerpt of the file contents to display
+                text = text.substring(0, Math.min(text.length, 255));
+                textFile.close();
+            }
+            catch (e) {
+                text = `Couldn't read your file ${fileUrl}:\n${e.message}`;
+            }
+            secondDialog.finished.connect(() => {
+                secondDialog = undefined;
+            });
+            secondDialog.addHeading(text, true);
+            secondDialog.show();
+        } else {
+            tiled.log("Second dialog already open.")
+        }
+    });
+
+    dialog.finished.connect(() => {
+        if (secondDialog) {
+            secondDialog.accept();
+        }
+    });
+    dialog.show();
+});
+SelectFileDialog.testPromptAction.text = "Select File Dialog";
+
+tiled.extendMenu("Edit", [
+    { action: "SelectFileDialog", before: "SelectAll" },
     { separator: true }
 ]);
