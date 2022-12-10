@@ -4,6 +4,7 @@
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
 var verbose = false
+var use_pretty_symbols = true
 
 const pathToUserFolder = FileInfo.toNativeSeparators(tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1])
 const pathToExtras = FileInfo.toNativeSeparators(tiled.extensionsPath + "/cdda_map_extension_extras");
@@ -16,7 +17,25 @@ const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN","ALLOW_TERRAIN_UNDER_OTHER_DAT
 const utf_ramps = {
     "utf8_shortlist" : `#$%&'()*+,-.:;<=>@ABCDEFGHIJKLMNOPQRSTUVWXYZ^_abcdefghijklmnopqrstuvwxyz{|}~¡¢£¤¥¦§©ª«¬®¯°±²³µ¶·¹º»¼½¾¿0123456789`,
     "greyscale_ramp" : `$@B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/|()1{}[]?-_+~<>i!lI;:,^'.`,
-    "specific" : {
+    "us_keyboard" : {
+        "t_soil" : `|`,
+        "wall" : `|(){}[]!I`,
+        "fence" : `#H`,
+        "door" : `D`,
+        "window" : `o`,
+        "pavement" : `'^,:;_-+`,
+        "sidewalk" : `'^,:;_-+`,
+        "floor" : `'^,:;_-+`,
+        "_up" : `<^`,
+        "_down" : `>v`,
+        "water" : `~w`,
+        "box" : `b`,
+        "sandbag" : `s`,
+        "telep" : `o`,
+        "table" : `T`,
+        "chair" : `h`
+    },
+    "pretty" : {
         "t_soil" : `░`,
         "wall" : `▓▒░$@B%&WM#/|(){}[]!I`,
         "fence" : `‡ǂ#H`,
@@ -48,6 +67,61 @@ var imageCache = {};
 var cache = {};
 
 const cte = { // helper functions
+    convertToRectangles: function convertToRectangles(coords) {
+        // Set the size of the grid cells
+        const GRID_SIZE = 32;
+      
+        // Create an empty array to store the rectangles
+        let rectangles = [];
+      
+        // Loop through the coordinates
+        for (let i = 0; i < coords.length; i += 2) {
+          let x1 = coords[i];
+          let y1 = coords[i + 1];
+          let x2 = coords[i + 2] || coords[0];
+          let y2 = coords[i + 3] || coords[1];
+      
+          // Snap the coordinates to the grid
+          x1 = Math.round(x1 / GRID_SIZE) * GRID_SIZE;
+          y1 = Math.round(y1 / GRID_SIZE) * GRID_SIZE;
+          x2 = Math.round(x2 / GRID_SIZE) * GRID_SIZE;
+          y2 = Math.round(y2 / GRID_SIZE) * GRID_SIZE;
+      
+          // Calculate the width and height of the rectangle
+          let w = Math.abs(x1 - x2);
+          let h = Math.abs(y1 - y2);
+      
+          // Make sure the rectangle conforms to the grid by
+          // setting the width and height to the nearest multiple of the grid size
+          w = Math.round(w / GRID_SIZE) * GRID_SIZE;
+          h = Math.round(h / GRID_SIZE) * GRID_SIZE;
+      
+          // Create a rectangle object and add it to the array
+          let rect = {
+            x: Math.min(x1, x2),
+            y: Math.min(y1, y2),
+            w: w,
+            h: h
+          };
+          rectangles.push(rect);
+        }
+      
+        // Return the array of rectangles
+        return rectangles;
+      },
+    replaceNewlines: function replaceNewlines(str) {
+        // find objects with 4 or fewer entries
+        var regex = /\{\n(?:.*?,(\n)){0,5}(?:.*?(\n)).*?},?/gm;
+        var matches = str.match(regex);
+      
+        // Replace newlines in each match with spaces
+        if (matches) {
+          matches.forEach((match) => {
+            str = str.replace(match, match.replace(/\n\t*/g, " ")).trim();
+          });
+        }
+        return str;
+    },
     filePicker: (filepath, title) => {
         let dialog = new Dialog();
         title ? dialog.windowTitle = title : dialog.windowTitle;
@@ -75,6 +149,7 @@ const cte = { // helper functions
         return cont ? newFilepath : false;
     },
     filePicker_old: function filePicker_old(func,filepath){
+
         let dialog = new Dialog()
         // if(dialog===undefined){dialog = new Dialog();}
         filepath == undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath)
@@ -260,8 +335,8 @@ function initialize(){
             if(verbose >= 2){tiled.log(`config file found at ${pathToConfig}`);}
             config = readJSONFile(pathToConfig)
         }
-        if( !File.exists(config.pathToTSX) ){File.makePath(config.pathToTSX);}
-        if( !File.exists(config.pathToTMX) ){File.makePath(config.pathToTMX);}
+        if( !File.exists(config.pathToTSJ) ){File.makePath(config.pathToTSJ);}
+        if( !File.exists(config.pathToTMJ) ){File.makePath(config.pathToTMJ);}
         if( !File.exists(config.pathToCustomTileset) ){tiled.log("Generating custom tileset.");generateMetaTileset();}
         return 1;
     }
@@ -298,23 +373,23 @@ function addSpriteToFavotires(){
         tiles = tiled.mapEditor.tilesetsView.selectedTiles;
     }
     if(tiles.length < 1){ return tiled.log(`No tiles selected.`)}
-    let pathToFavoriteImages = FileInfo.toNativeSeparators(FileInfo.path(config.pathToFavoritesTSX)+"/images");
-    if(!File.exists(FileInfo.path(config.pathToFavoritesTSX))){File.makePath(FileInfo.path(config.pathToFavoritesTSX));};
+    let pathToFavoriteImages = FileInfo.toNativeSeparators(FileInfo.path(config.pathToFavoritesTSJ)+"/images");
+    if(!File.exists(FileInfo.path(config.pathToFavoritesTSJ))){File.makePath(FileInfo.path(config.pathToFavoritesTSJ));};
     if(!File.exists(pathToFavoriteImages)){File.makePath(pathToFavoriteImages);};
     
     let favorites;
-    if(!File.exists(config.pathToFavoritesTSX)){
+    if(!File.exists(config.pathToFavoritesTSJ)){
         favorites = new Tileset("Favorites");
-        tiled.tilesetFormat("tsx").write(favorites,config.pathToFavoritesTSX);
+        tiled.tilesetFormat("json").write(favorites,config.pathToFavoritesTSJ);
     }
     for(let asset of tiled.openAssets){
-        if(asset.fileName == config.pathToFavoritesTSX){
+        if(asset.fileName == config.pathToFavoritesTSJ){
             favorites = asset
             break
         }
     }
     if(favorites === undefined){
-        favorites = tiled.open(config.pathToFavoritesTSX);
+        favorites = tiled.open(config.pathToFavoritesTSJ);
     }
 
     for(let tile of tiles){
@@ -329,7 +404,7 @@ function addSpriteToFavotires(){
         tiled.log(`'${tile.property(`cdda_id`)}' added to favorites.`)
     }
     // tiled.log(tiled.activeAsset.selectedTiles)
-    tiled.tilesetFormat("tsx").write(favorites,config.pathToFavoritesTSX);
+    tiled.tilesetFormat("json").write(favorites,config.pathToFavoritesTSJ);
     tiled.reload(tiled.activeAsset)
     tiled.open(originalAsset.fileName)
 }
@@ -337,40 +412,41 @@ function add_cdda_id_to_unknowns(cdda_id){
     if(cdda_id == `t_null`){return}
     // tiled.log(`Working on Unkown Tiles`)
     
-    if(!cache.hasOwnProperty(config.pathToCustomTileset)){cache[config.pathToCustomTileset] = TSXread(config.pathToCustomTileset)}
-    let tsxTiles = cache[config.pathToCustomTileset] //  filepath returns { tiles: { id: { class, probabiltiy, properties: { property: value }}}}
+    if(!cache.hasOwnProperty(config.pathToCustomTileset)){cache[config.pathToCustomTileset] = readJSONFile(config.pathToCustomTileset)}
+    let tsjTiles = cache[config.pathToCustomTileset] //  filepath returns { tiles: { id: { class, probabiltiy, properties: { property: value }}}}
     let unknown_tile_image_path;
-    for ( let tsxTileID in tsxTiles.tiles ){
-        if(tsxTiles.tiles[tsxTileID].properties.cdda_id == "unknown_tile"){
-            unknown_tile_image_path = FileInfo.toNativeSeparators(`${FileInfo.path(config.pathToCustomTileset)}/${tsxTiles.tiles[tsxTileID].image.source}`)
+    for ( let tile_index in tsjTiles.tiles ){
+    let this_tile = tsjTiles.tiles[tile_index]
+        if(this_tile.properties.cdda_id == "unknown_tile"){
+            unknown_tile_image_path = FileInfo.toNativeSeparators(`${FileInfo.path(config.pathToCustomTileset)}/${this_tile.image.source}`)
             // tiled.log(`path to unknown tile image ${unknown_tile_image_path}`)
             break
         }
     }
 
-    if(File.exists(config.pathToUnknownsTSX)){
-        let unknowntsxtiles = TSXread(config.pathToUnknownsTSX)
-        for ( let tsxTileID in unknowntsxtiles.tiles ){
-            if(unknowntsxtiles.tiles[tsxTileID].properties.cdda_id == cdda_id){return tiled.open(config.pathToUnknownsTSX).findTile(tsxTileID);}
+    if(File.exists(config.pathToUnknownsTSJ)){
+        let unknowntsjtiles = readJSONFile(config.pathToUnknownsTSJ)
+        for ( let tsjTileID in unknowntsjtiles.tiles ){
+            if(unknowntsjtiles.tiles[tsjTileID].properties.cdda_id == cdda_id){return tiled.open(config.pathToUnknownsTSJ).findTile(tsjTileID);}
         }
     }
     let unknowns;
-    if(!config.hasOwnProperty(`pathToUnknownsTSX`)){
-        config.pathToUnknownsTSX = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+"/unknown_tiles.tsx")
+    if(!config.hasOwnProperty(`pathToUnknownsTSJ`)){
+        config.pathToUnknownsTSJ = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSJ+"/unknown_tiles.tsj")
         cte.updateConfig()
     }
-    if(!File.exists(config.pathToUnknownsTSX)){
+    if(!File.exists(config.pathToUnknownsTSJ)){
         tiled.log(`Generating 'Unknown Tiles' Tileset`)
         unknowns = new Tileset("Unknown Tiles");
-        tiled.tilesetFormat("tsx").write(unknowns,config.pathToUnknownsTSX);
+
     }
-    unknowns = tiled.open(config.pathToUnknownsTSX);
+    unknowns = tiled.open(config.pathToUnknownsTSJ);
     let newUnknownTile = unknowns.addTile()
     newUnknownTile.setProperty("cdda_id",cdda_id)
     newUnknownTile.imageFileName = unknown_tile_image_path
     if(verbose >= 1){tiled.log(`'${newUnknownTile.property(`cdda_id`)}' added to unknowns.`)}
 
-    tiled.tilesetFormat("tsx").write(unknowns,config.pathToUnknownsTSX);
+    tiled.tilesetFormat("json").write(unknowns,config.pathToUnknownsTSJ);
     // tiled.close(unknowns)
     return newUnknownTile
 }
@@ -390,25 +466,12 @@ function generateMetaTileset(){
             tile.setProperty("cdda_id",FileInfo.baseName(filepath))
             tile.imageFileName = filepath
         }
-        tiled.tilesetFormat("tsx").write(tileset,config.pathToCustomTileset)
+        tiled.tilesetFormat("json").write(tileset,config.pathToCustomTileset)
     } else {
         tiled.log("cannot find 'extras' folder.")
     }
 }
 
-//tiled.tilesetFormat("tsx").write(ts,pathToTSXFile)
-function writeToFile(filepath,data) {
-    var format = filepath.match(/\.(.+)$/)
-    // const file = new TextFile(filepath, TextFile.WriteOnly);
-    if (format == 'tsx'){
-        tiled.log(`Writing to file: '${filepath}'`)
-        return tiled.tilesetFormat(format[1]).write(data, filepath);
-    }
-    if (format == 'tmx'){
-        tiled.log(`Writing to file: '${filepath}'`)
-        return tiled.mapFormat(format[1]).write(data, filepath);
-    }
-}
 function readJSONFile(filepath){
         const file = new TextFile(filepath, TextFile.ReadOnly)
         file.codec = "UTF-8"
@@ -442,13 +505,13 @@ function importTilesets(){
     config.chosenTileset = config.pathToChosenTileset.match(/(?:\/|\\|\\\\)(?:(\.?.+$)|(?:(\.?.+)(?:\/|\\|\\\\).+\..+))/)[1]
     config.pathToJSON = FileInfo.toNativeSeparators(config.pathToChosenTileset + "/tile_config.json");
     
-    config.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(mainConfig.pathToProject + "/tsx/"+FileInfo.baseName(config.chosenTileset))
-    if( !File.exists(config.pathToChosenTilesetTSX) ){File.makePath(config.pathToChosenTilesetTSX);}
+    config.pathToChosenTilesetTSJ = FileInfo.toNativeSeparators(mainConfig.pathToProject + "/tsj/"+FileInfo.baseName(config.chosenTileset))
+    if( !File.exists(config.pathToChosenTilesetTSJ) ){File.makePath(config.pathToChosenTilesetTSJ);}
     
     cte.updateConfig();
-    let pathToDuplicateIDImages = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+"/duplicate_id_images")
+    let pathToDuplicateIDImages = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSJ+"/duplicate_id_images")
     if( !File.exists(pathToDuplicateIDImages) ){File.makePath(pathToDuplicateIDImages);}
-    let pathToDuplicateIDTSX = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+"/duplicate_id_tiles.tsx")
+    let pathToDuplicateIDTSJ = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSJ+"/duplicate_id_tiles.tsj")
     //duplicates tiled tileset
     var dupe_tileset = new Tileset("duplicate_cdda_ids");
     
@@ -557,7 +620,7 @@ function importTilesets(){
                                 let croppedImage = cte.cropImage(currentTile.asset.image,x,y);
                                 croppedImage.save(pathToThisDupeImage);
                             }
-                            // if(cte.flattenDict(TSXread(config.pathToFavoritesTSX)).includes(tile.id[n])){
+                            // if(cte.flattenDict(TSJread(config.pathToFavoritesTSJ)).includes(tile.id[n])){
                             //     tiled.log(`!!!gotem`)
                             //     continue;
                             // }
@@ -589,7 +652,7 @@ function importTilesets(){
                             croppedImage.save(pathToThisDupeImage);
                             croppedImage = undefined;
                         }
-                        // if(cte.flattenDict(TSXread(config.pathToFavoritesTSX)).includes(tile.id)){
+                        // if(cte.flattenDict(TSJread(config.pathToFavoritesTSJ)).includes(tile.id)){
                         //     tiled.log(`!!!gotem`)
                         //     continue;
                         // }
@@ -623,7 +686,7 @@ function importTilesets(){
         jts.name = FileInfo.baseName(imgFile)
 
         //skip existing ("just skip existing altogether bro") and 'fallback'
-        let shouldSkip = !overwriteExisting && File.exists(config.pathToChosenTilesetTSX + "/" + jts.name + ".tsx") || skipOverwrite && imgFile.match(/(fallback)/);
+        let shouldSkip = !overwriteExisting && File.exists(config.pathToChosenTilesetTSJ + "/" + jts.name + ".tsj") || skipOverwrite && imgFile.match(/(fallback)/);
         if (shouldSkip){
             if(verbose >= 2){tiled.log(`skipping ${jts.name}`);};
             return [0,0];
@@ -695,16 +758,16 @@ function importTilesets(){
         let {ts,jts} = processTileset(j,t)
         if (ts == null){ continue; }
         ts = importSpriteData(ts,jts,j,t)
-        let pathToTSXFile = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX + "/" + ts.name+".tsx");
-        if(verbose >= 2){tiled.log(`Preparing to write ${(ts.isTileset) ? `tilesheet` : `not a tilesheet`} '${ts.name}' to '${pathToTSXFile}'`);};
-        // let outputFileResults = writeToFile(pathToTSXFile,ts);
-        let outputFileResults = tiled.tilesetFormat("tsx").write(ts,pathToTSXFile)
-        // (outputFileResults == null) ? tiled.log(ts.name + " file created successfully.") : tiled.log(`FAILED to create file at '${pathToTSXFile}'' - Error: ${outputFileResults}`)
-        tiled.log('-------------------TSX DONE-------------------')
+        let pathToTSJFile = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSJ + "/" + ts.name+".tsj");
+        if(verbose >= 2){tiled.log(`Preparing to write ${(ts.isTileset) ? `tilesheet` : `not a tilesheet`} '${ts.name}' to '${pathToTSJFile}'`);};
+        // let outputFileResults = writeToFile(pathToTSJFile,ts);
+        let outputFileResults = tiled.tilesetFormat("json").write(ts,pathToTSJFile)
+        // (outputFileResults == null) ? tiled.log(ts.name + " file created successfully.") : tiled.log(`FAILED to create file at '${pathToTSJFile}'' - Error: ${outputFileResults}`)
+        tiled.log('-------------------TSJ DONE-------------------')
 
     }
-    tiled.log(pathToDuplicateIDTSX)
-    tiled.tilesetFormat("tsx").write(dupe_tileset,pathToDuplicateIDTSX)
+    tiled.log(pathToDuplicateIDTSJ)
+    tiled.tilesetFormat("json").write(dupe_tileset,pathToDuplicateIDTSJ)
     tiled.log('------------------------- Import Tileset DONE -------------------------')
 }
 function prepareTilemap(tmname = 'CDDA_map_24x24',mapsize = [24,24]){
@@ -943,7 +1006,7 @@ function importMap(pathToMap,j){
     config.pathToLastImportMap = pathToMap;
     cte.updateConfig();
     tiled.log(`Importing '${pathToMap}'`)
-    //File.makePath(config.pathtoProject+'\\importedtsx')
+    //File.makePath(config.pathtoProject+'\\importedtsj')
     
     //read map file
     let f = new TextFile(pathToMap, TextFile.ReadOnly);
@@ -1143,28 +1206,30 @@ function importMap(pathToMap,j){
 
 
         // get tile locations known for cdda ids in map
-        let tsxs = getRecursiveFilePathsInFolder(config.pathToChosenTilesetTSX);
-        if(config.hasOwnProperty(`pathToCustomTileset`)){tsxs.push(config.pathToCustomTileset)} // add custom tsx to the mix
-        if(config.hasOwnProperty(`pathToUnknownsTSX`)){if(File.exists(config.pathToUnknownsTSX)){tsxs.push(config.pathToUnknownsTSX)}} // add custom tsx to the mix
-        
-        for(let filepath of tsxs){
-            if (!filepath.match(/\.tsx$/)){continue;};
 
-            let tsxTiles = TSXread(filepath) //  filepath returns { tiles: { id: { class, probabiltiy, properties: { property: value }}}}
+        let tsjs = getRecursiveFilePathsInFolder(config.pathToChosenTilesetTSJ);
+        if(config.hasOwnProperty(`pathToCustomTileset`)){tsjs.push(config.pathToCustomTileset)} // add custom tsj to the mix
+        if(config.hasOwnProperty(`pathToUnknownsTSJ`)){if(File.exists(config.pathToUnknownsTSJ)){tsjs.push(config.pathToUnknownsTSJ)}} // add custom tsj to the mix
+        
+        for(let filepath of tsjs){
+            if (!filepath.match(/\.tsj$/)){continue;};
+
+            // let tsjTiles = TSJread(filepath) //  filepath returns { tiles: { id: { class, probabiltiy, properties: { property: value }}}}
+            let tsjTiles = readJSONFile(filepath) //  filepath returns { tiles: { id: { class, probabiltiy, properties: { property: value }}}}
             let tilesetname = FileInfo.baseName(filepath);
 
-            for ( let tsxTileID in tsxTiles.tiles ){
-                if (!tsxTiles.tiles[tsxTileID].properties["cdda_id"]){continue;}; // continue if no cdda id
-                let tile_cdda_id = tsxTiles.tiles[tsxTileID].properties.cdda_id
+            for ( let tsjTileID in tsjTiles.tiles ){
+                if (!tsjTiles.tiles[tsjTileID].properties["cdda_id"]){continue;}; // continue if no cdda id
+                let tile_cdda_id = tsjTiles.tiles[tsjTileID].properties.cdda_id
                 if(tile_cdda_id == "unknown_tile"){
-                    all_tileDict[tile_cdda_id].id = tsxTileID
+                    all_tileDict[tile_cdda_id].id = tsjTileID
                     all_tileDict[tile_cdda_id].filepath = filepath
                     if(verbose >= 1){tiled.log(`adding '${tile_cdda_id}' with id '${all_tileDict[tile_cdda_id].id}'to all_tileDict`)}
                     continue
                 }
                 if(all_tileDict.hasOwnProperty(tile_cdda_id)){
                     if(all_tileDict[tile_cdda_id].hasOwnProperty("id")){continue;}
-                    all_tileDict[tile_cdda_id].id = tsxTileID
+                    all_tileDict[tile_cdda_id].id = tsjTileID
                     all_tileDict[tile_cdda_id].filepath = filepath
                     if(verbose >= 1){tiled.log(`adding '${tile_cdda_id}' with id '${all_tileDict[tile_cdda_id].id}'to all_tileDict`)}
                 }
@@ -1480,7 +1545,7 @@ function importMap(pathToMap,j){
     }
     tm.setProperty("import_tileset",config.chosenTileset)
     
-    let pathToTMX = config.pathToTMX +"/"+ FileInfo.baseName(pathToMap) +".tmx"
+    let pathToTMJ = config.pathToTMJ +"/"+ FileInfo.baseName(pathToMap) +".tmj"
     for(let openAsset of tiled.openAssets){
         if(originalOpenAssets.includes(openAsset)){continue;}
         if(openAsset == tm){continue;}
@@ -1488,10 +1553,10 @@ function importMap(pathToMap,j){
     }
     tiled.activeAsset = tm
     if(config.snaptogrid){tiled.trigger("SnapToGrid")}
-    // let outputFileResults = tiled.mapFormat("tmx").write(tm, pathToTMX);
-    // let outputFileResults = writeToFile(pathToTMX,tm);
+    // let outputFileResults = tiled.mapFormat("tmj").write(tm, pathToTMJ);
+    // let outputFileResults = writeToFile(pathToTMJ,tm);
     // (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
-    // tiled.open(pathToTMX);
+    // tiled.open(pathToTMJ);
 }
 function addNewOmTerrainToMap(){
     return tiled.activeAsset.isTileMap ? tiled.activeAsset.addLayer(makeNewOmTerrain([tiled.activeAsset.width,tiled.activeAsset.height])) : tiled.log(`No tilemap found to add layer.`)
@@ -1530,9 +1595,9 @@ function makeEmptyMap(){
     tm.addLayer(makeNewOmTerrain([mapsize,mapsize]))
 
 
-    let filepath = FileInfo.toNativeSeparators(config.pathToTMX+"/"+tmname+".tmx")
+    let filepath = FileInfo.toNativeSeparators(config.pathToTMJ+"/"+tmname+".tmj")
         // return tiled.mapFormat(format[1]).write(data, filepath);
-    let outputFileResults = tiled.mapFormat("tmx").write(tm, filepath);
+    let outputFileResults = tiled.mapFormat("tmj").write(tm, filepath);
     (outputFileResults == null) ? tiled.log(FileInfo.baseName(filepath) + " file created successfully.") : tiled.log(FileInfo.baseName(filepath) + " - FAILED to create file. Error: " + outputFileResults)
     tiled.open(filepath);
     if(config.snaptogrid){tiled.trigger("SnapToGrid")}
@@ -1789,10 +1854,14 @@ function exportMap(map){
             // newly defined symbol
             let symbolstouse = ""
             let cdda_ids_in_tile = cte.flattenDict(coordinate_assignments[coordinate])
-            for(let searchTerm in utf_ramps.specific){
+            let symbol_group_to_use = `pretty`
+            if(!use_pretty_symbols){
+                symbol_group_to_use = `us_keyboard`
+            }
+            for(let searchTerm in utf_ramps[symbol_group_to_use]){
                 let re = new RegExp(`(${searchTerm})`)
                 if(cdda_ids_in_tile.join("").match(re)){
-                    symbolstouse = utf_ramps.specific[searchTerm]
+                    symbolstouse = utf_ramps[symbol_group_to_use][searchTerm]
                 }
             }
             symbolstouse += utf_ramps.utf8_shortlist
@@ -1931,23 +2000,26 @@ function findTileInTilesets(){
     }
 
     function getMatchingTiles(cdda_id_tofind,asset){
-        let tsxs = cte.getFilesInPath(config.pathToChosenTilesetTSX)
+        let tsjs = cte.getFilesInPath(config.pathToChosenTilesetTSJ)
         let matching_tiles = {}
-        for(let filename of tsxs){
-            if (!filename.match(/\.tsx$/)){
+        for(let filename of tsjs){
+            if (!filename.match(/\.tsj$/)){
                 continue
             }
-            let filepath = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSX+ "/" +filename)
+            let filepath = FileInfo.toNativeSeparators(config.pathToChosenTilesetTSJ+ "/" +filename)
             if(verbose >= 2){tiled.log(`${filepath}`);}
-            let tsxData = TSXread(filepath);
-            for ( let tileid in tsxData.tiles ){
-                if( tsxData.tiles[tileid].hasOwnProperty("properties")){
-                    for ( let property in tsxData.tiles[tileid].properties ){
-                        if( verbose >= 3){tiled.log(`checking '${property}' : '${tsxData.tiles[tileid].properties[property]}' for '${cdda_id_tofind}' in id '${tileid}'`);}
-                        if(tsxData.tiles[tileid].properties[property].includes(cdda_id_tofind)){
-                            if(verbose >= 2){tiled.log(`'${tsxData.tiles[tileid].properties[property]}' found. '${tileid}' in '${filename}'`);}
-                            matching_tiles[tsxData.tiles[tileid].properties[property]] = {
-                                "id" : tileid,
+            let tsjData = readJSONFile(filepath);
+            for ( let tile_index in tsjData.tiles ){
+                let this_tile = tsjData.tiles[tile_index]
+                if( this_tile.hasOwnProperty("properties")){
+                    for ( let property in this_tile.properties ){
+                        let this_property = this_tile.properties[property]
+                        if(this_property.name != `cdda_id`){continue;}
+                        // if( verbose >= 3){tiled.log(`checking '${property.name}' : '${this_tile.properties[property]}' for '${cdda_id_tofind}' in id '${tile_index}'`);}
+                        if(this_property.value.includes(cdda_id_tofind)){
+                            if(verbose >= 2){tiled.log(`'${this_property.name}' found. '${this_tile.id}' in '${filename}'`);}
+                            matching_tiles[this_property.value] = {
+                                "id" : this_tile.id,
                                 "filepath" : filepath
                             }
                         }
@@ -2024,18 +2096,18 @@ class extensionConfig {
     constructor(pathToProject,pathToCDDA = "~/cdda") {
         this.filename = configfilename;
         this.pathToExtras = pathToExtras;
-        this.pathToCustomTileset = FileInfo.toNativeSeparators(this.pathToExtras + "/cdda_custom_tileset.tsx");
+        this.pathToMetaTileset = FileInfo.toNativeSeparators(this.pathToExtras + "/cdda_custom_tileset.tsj");
         this.pathToProject = pathToProject;
-        this.pathToTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx");
-        this.pathToTMX = FileInfo.toNativeSeparators(pathToProject + "/tmx");
+        this.pathToTSJ = FileInfo.toNativeSeparators(pathToProject + "/tsj");
+        this.pathToTMJ = FileInfo.toNativeSeparators(pathToProject + "/tmj");
         this.pathToCDDA = pathToCDDA;
         this.pathToTilesets = FileInfo.toNativeSeparators(pathToCDDA + "/gfx");
         this.pathToPalettes = FileInfo.toNativeSeparators(pathToCDDA + "/data/json/mapgen_palettes");
         this.chosenTileset = "ChibiUltica";
         this.pathToChosenTileset = FileInfo.toNativeSeparators(this.pathToTilesets + "/" + this.chosenTileset);
-        this.pathToChosenTilesetTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx/"+this.chosenTileset)
+        this.pathToChosenTilesetTSJ = FileInfo.toNativeSeparators(pathToProject + "/tsj/"+this.chosenTileset)
         this.pathToJSON = FileInfo.toNativeSeparators(this.pathToChosenTileset + "/tile_config.json");
-        this.pathToFavoritesTSX = FileInfo.toNativeSeparators(pathToProject + "/tsx/favorites/favorites.tsx");
+        this.pathToFavoritesTSJ = FileInfo.toNativeSeparators(pathToProject + "/tsj/favorites/favorites.tsj");
         this.snaptogrid = true;
 };
 };
@@ -2047,8 +2119,11 @@ var CDDAMapFormat = {
         var m = exportMap(map);
 
         var file = new TextFile(fileName, TextFile.WriteOnly);
-        file.write(JSON.stringify(m, null, `\t`));
-        file.codec = "UTF-8"
+        let text = JSON.stringify(m, null, `\t`);
+        text = cte.replaceNewlines(text)
+        // text = text.replace(/\n/gm, r => "")
+        file.write(text);
+        file.codec = "UTF-8";
         file.commit();
     }
 };
@@ -2108,20 +2183,26 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     tiled.log(`${action_cdda_debug.text} was run.`)
     // tiled.log(tiled.actions)
     // tiled.trigger("CustomAction_CDDA_add_sprite_to_favotires")
-    initialize()
-    let filepath = config.pathToTMX
+    // initialize()
+    // let filepath = config.pathToTMJ
     // let dialog = new Dialog()
     filepath = cte.filePicker(filepath)
     // filepath = filePicker(filepath)
     // cte.filePicker(filepath);
+    // tiled.log(cte.getValidCharacters())
     // dialog.show();
-    tiled.log(`!!!!!end file: ${filepath}`)
+    // tiled.log(`!!!!!end file: ${filepath}`)
     // findTileInTilesets(cdda_id_tofind)
 });
-// toggle debug
+// toggle verbose mode
 const action_cdda_verbose = tiled.registerAction("CustomAction_cdda_verbose", function(action_cdda_verbose) {
     tiled.log(action_cdda_verbose.text + " was " + (action_cdda_verbose.checked ? "checked" : "unchecked"))
     action_cdda_verbose.checked ? verbose = true : verbose = false
+});
+// toggle unicode character usage
+const action_cdda_unicode_set_toggle = tiled.registerAction("CustomAction_cdda_unicode_set_toggle", function(action_cdda_unicode_set_toggle) {
+    tiled.log(action_cdda_unicode_set_toggle.text + " was " + (action_cdda_unicode_set_toggle.checked ? "checked" : "unchecked"))
+    action_cdda_unicode_set_toggle.checked ? use_pretty_symbols = true : use_pretty_symbols = false
 });
 
 action_importTileset.text = "Import CDDA tileset"
@@ -2136,6 +2217,9 @@ action_add_sprite_to_favotires.shortcut = "CTRL+SHIFT+F"
 action_changeProjectPath.text = "Change project path"
 action_cdda_verbose.text = "Verbose Logging (slower performance)"
 action_cdda_verbose.checkable = true
+action_cdda_unicode_set_toggle.text = "Pretty symbols for map export"
+action_cdda_unicode_set_toggle.checkable = true
+action_cdda_unicode_set_toggle.checked = true
 
 action_cdda_debug.text = "run associated debug action"
 action_cdda_debug.shortcut = "CTRL+D"
@@ -2153,6 +2237,7 @@ tiled.extendMenu("File", [
 tiled.extendMenu("Map", [
     { separator: true },
     { action: "CustomAction_newCDDAGroupLayer", after: "Terrain Sets" },
+    { action: "CustomAction_cdda_unicode_set_toggle", after: "Terrain Sets" },
     { separator: true }
 ]);
 tiled.extendMenu("Edit", [
@@ -2165,5 +2250,99 @@ tiled.extendMenu("Help", [
     { separator: true },
     { action: "CustomAction_cdda_verbose", after: "Terrain Sets" },
     { action: "CustomAction_cdda_debug", after: "Terrain Sets" },
+    { separator: true }
+]);
+
+
+//-----------------------------------
+const watchForStateChange = function (widget, stateKey, state) {
+
+    if (widget.valueChanged) {
+        widget.valueChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} value is ${newValue}`);
+            state[stateKey] = widget.value;
+        });
+    }
+    if (widget.colorChanged) {
+        widget.colorChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} color is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+    if (widget.textChanged) {
+        widget.textChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} text is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+    if (widget.currentTextChanged) {
+        widget.currentTextChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} text is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+
+
+    if (widget.stateChanged) {
+        widget.stateChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} value is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+};
+
+// https://github.com/dogboydog/tiled-dialog-scripts/blob/main/SelectFile.mjs
+var SelectFileDialog = {};
+// import {DialogUtils} from 'DialogUtils.mjs';
+SelectFileDialog.testPromptAction = tiled.registerAction("SelectFileDialog", function (action) {
+
+    var dialog = new Dialog();
+    dialog.addHeading("Select your file please.", true);
+    var filePicker1 = dialog.addFilePicker("Your file: ");
+    filePicker1.fileUrlChanged.connect((newUrl) => {
+        tiled.log(`The new file is ${filePicker1.fileUrl}`);
+    });
+    var secondDialog;
+    var submitButton = dialog.addButton("Submit");
+    submitButton.clicked.connect(() => {
+        if (!secondDialog) {
+            var fileSchemeReplace = tiled.platform == "windows" ? "file:///" : "file://";
+            var fileUrl = filePicker1.fileUrl.toString().replace(fileSchemeReplace, "");
+            var text = '';
+            secondDialog = new Dialog();
+            secondDialog.addLabel("File Contents (Excerpt)");
+            secondDialog.addSeparator();
+
+            try {
+                var textFile = new TextFile(fileUrl, TextFile.ReadOnly);
+                text = textFile.readAll();
+                // take an excerpt of the file contents to display
+                text = text.substring(0, Math.min(text.length, 255));
+                textFile.close();
+            }
+            catch (e) {
+                text = `Couldn't read your file ${fileUrl}:\n${e.message}`;
+            }
+            secondDialog.finished.connect(() => {
+                secondDialog = undefined;
+            });
+            secondDialog.addHeading(text, true);
+            secondDialog.show();
+        } else {
+            tiled.log("Second dialog already open.")
+        }
+    });
+
+    dialog.finished.connect(() => {
+        if (secondDialog) {
+            secondDialog.accept();
+        }
+    });
+    dialog.show();
+});
+SelectFileDialog.testPromptAction.text = "Select File Dialog";
+
+tiled.extendMenu("Edit", [
+    { action: "SelectFileDialog", before: "SelectAll" },
     { separator: true }
 ]);

@@ -57,6 +57,8 @@ What works
   - Chosen tileset is imported and each matching cdda id has a unique tile for easy stamping.
   - Find tile by its cdda id with 'ctrl+f'.
   - Save a copy of the tile to a 'favorites' tileset for easy access.
+  - Use palettes
+    - palettes are defined in the properties of a layer group under `cdda_palette_0` and if you want to assign more you have to add a property `cdda_palette_1`, etc, until I make it more elegant
 
 What kind of works
 
