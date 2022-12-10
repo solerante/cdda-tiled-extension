@@ -66,6 +66,21 @@ var mainConfig = {};
 var imageCache = {};
 
 const cte = { // helper functions
+    replaceNewlines: function replaceNewlines(str) {
+        // Use the regular expression to find objects with 4 or fewer entries
+        var regex = /\{\n(?:.*?,(\n)){0,4}(?:.*?(\n)).*?},?/gm;
+        var matches = str.match(regex);
+      
+        // Replace newlines in each match with spaces
+        if (matches) {
+          matches.forEach((match) => {
+            str = str.replace(match, match.replace(/\n\t*/g, " ")).trim();
+          });
+        }
+      
+        // Return the updated string
+        return str;
+    },
     filePicker: function filePicker(func,filepath){
         let dialog = new Dialog()
         // if(dialog===undefined){dialog = new Dialog();}
@@ -2021,8 +2036,11 @@ var CDDAMapFormat = {
         var m = exportMap(map);
 
         var file = new TextFile(fileName, TextFile.WriteOnly);
-        file.write(JSON.stringify(m, null, `\t`));
-        file.codec = "UTF-8"
+        let text = JSON.stringify(m, null, `\t`);
+        text = cte.replaceNewlines(text)
+        // text = text.replace(/\n/gm, r => "")
+        file.write(text);
+        file.codec = "UTF-8";
         file.commit();
     }
 };
@@ -2148,5 +2166,99 @@ tiled.extendMenu("Help", [
     { separator: true },
     { action: "CustomAction_cdda_verbose", after: "Terrain Sets" },
     { action: "CustomAction_cdda_debug", after: "Terrain Sets" },
+    { separator: true }
+]);
+
+
+//-----------------------------------
+const watchForStateChange = function (widget, stateKey, state) {
+
+    if (widget.valueChanged) {
+        widget.valueChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} value is ${newValue}`);
+            state[stateKey] = widget.value;
+        });
+    }
+    if (widget.colorChanged) {
+        widget.colorChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} color is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+    if (widget.textChanged) {
+        widget.textChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} text is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+    if (widget.currentTextChanged) {
+        widget.currentTextChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} text is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+
+
+    if (widget.stateChanged) {
+        widget.stateChanged.connect((newValue) => {
+            tiled.log(`The new ${stateKey} value is ${newValue}`);
+            state[stateKey] = newValue;
+        });
+    }
+};
+
+// https://github.com/dogboydog/tiled-dialog-scripts/blob/main/SelectFile.mjs
+var SelectFileDialog = {};
+// import {DialogUtils} from 'DialogUtils.mjs';
+SelectFileDialog.testPromptAction = tiled.registerAction("SelectFileDialog", function (action) {
+
+    var dialog = new Dialog();
+    dialog.addHeading("Select your file please.", true);
+    var filePicker1 = dialog.addFilePicker("Your file: ");
+    filePicker1.fileUrlChanged.connect((newUrl) => {
+        tiled.log(`The new file is ${filePicker1.fileUrl}`);
+    });
+    var secondDialog;
+    var submitButton = dialog.addButton("Submit");
+    submitButton.clicked.connect(() => {
+        if (!secondDialog) {
+            var fileSchemeReplace = tiled.platform == "windows" ? "file:///" : "file://";
+            var fileUrl = filePicker1.fileUrl.toString().replace(fileSchemeReplace, "");
+            var text = '';
+            secondDialog = new Dialog();
+            secondDialog.addLabel("File Contents (Excerpt)");
+            secondDialog.addSeparator();
+
+            try {
+                var textFile = new TextFile(fileUrl, TextFile.ReadOnly);
+                text = textFile.readAll();
+                // take an excerpt of the file contents to display
+                text = text.substring(0, Math.min(text.length, 255));
+                textFile.close();
+            }
+            catch (e) {
+                text = `Couldn't read your file ${fileUrl}:\n${e.message}`;
+            }
+            secondDialog.finished.connect(() => {
+                secondDialog = undefined;
+            });
+            secondDialog.addHeading(text, true);
+            secondDialog.show();
+        } else {
+            tiled.log("Second dialog already open.")
+        }
+    });
+
+    dialog.finished.connect(() => {
+        if (secondDialog) {
+            secondDialog.accept();
+        }
+    });
+    dialog.show();
+});
+SelectFileDialog.testPromptAction.text = "Select File Dialog";
+
+tiled.extendMenu("Edit", [
+    { action: "SelectFileDialog", before: "SelectAll" },
     { separator: true }
 ]);
