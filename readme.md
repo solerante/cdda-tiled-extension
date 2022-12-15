@@ -1,11 +1,18 @@
-oops, I've undone some features in a bad merge :grimace: hang on.
-
 # Tiled extension for Cataclysm: Dark Days Ahead
 
 Add the extension and extras folder to your [Tiled](https://www.mapeditor.org/) extensions folder.
 [Check out the Tiled docs for more information](https://doc.mapeditor.org/en/stable/reference/scripting/#script-extensions)
 
 The 'extras' folder contains png images for the extension tileset. This adds relative tiles like region groundcover.
+
+## Update
+
+All paths shifted. If updating, delete old extension files and configs. May or may not load with old maps.
+
+- unknown cdda ids assigned question mark tile.
+- all tsx files now tsj.
+- all tmx files now tmj.
+- folders renamed.
 
 =======
 ![tiledcddaextension](https://user-images.githubusercontent.com/30750303/202532520-69f460d4-2f5e-49c0-b3e7-46e10fc9637e.gif)
