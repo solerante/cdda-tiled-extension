@@ -1698,9 +1698,6 @@ function importMap(filepath, j) {
     // (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
     // tiled.open(path_to_maps);
 }
-function addNewOmTerrainToMap() {
-    return tiled.activeAsset.isTileMap ? tiled.activeAsset.addLayer(makeNewOmTerrain([tiled.activeAsset.width, tiled.activeAsset.height])) : tiled.log(`No tilemap found to add layer.`)
-}
 function make_guide_from_shape(){
     if (!cache.hasOwnProperty("diagonal_stripes")) {
         if (!cache.hasOwnProperty(config.path_to_meta_tileset)) { cache[config.path_to_meta_tileset] = JSONread(config.path_to_meta_tileset) }
@@ -1750,7 +1747,10 @@ function make_guide_from_shape(){
     obj.setProperty(`projected_tiles`,layer)
     map.addLayer(layer)
 }
-function makeNewOmTerrain(width, height) {
+function addNewOmTerrainToMap() {
+    return tiled.activeAsset.isTileMap ? tiled.activeAsset.addLayer(makeNewOmTerrain([tiled.activeAsset.width, tiled.activeAsset.height])) : tiled.log(`No tilemap found to add layer.`)
+}
+function makeNewOmTerrain([width, height]) {
     width = parseInt(width, 10)
     height = parseInt(height, 10)
     let layergroup = new GroupLayer("My_om_terrain")
@@ -1781,16 +1781,15 @@ function makeEmptyMap() {
 
     let tmname = `CDDA_map_${mapsize}x${mapsize}`
     let tm = prepareTilemap(tmname, [mapsize, mapsize]);
-
     tm.addLayer(makeNewOmTerrain([mapsize, mapsize]))
-
-
+    
+    
     // tiled.activeAsset = tm
     let filepath = `${config.path_to_maps}/${tmname}.tmj`
-    tiled.log(filepath)
-    let outputFileResults = tiled.mapFormat("json").write(tm, filepath);
-    tiled.open(filepath)
+    // return tiled.log(filepath)
+    tiled.mapFormat("json").write(tm, filepath);
     if (config.snaptogrid) { tiled.trigger("SnapToGrid") }
+    tiled.open(filepath)
 }
 
 function exportMap(map) {
