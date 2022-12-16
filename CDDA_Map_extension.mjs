@@ -102,6 +102,40 @@ var imageCache = {};
 var cache = {};
 
 const cte = { // helper functions
+    getCircleCoordinates: function getCircleCoordinates(center, radius) {
+        // Create an empty array to store the circle coordinates
+        const coordinates = [];
+      
+        // Define the variables for the algorithm
+        let x = radius;
+        let y = 0;
+        let decisionOver2 = 1 - x;   // Decision criterion divided by 2 evaluated at x=r, y=0
+      
+        // Loop through all values of x and y for the circle
+        while (y <= x) {
+          // Add the coordinates for the current x and y values to the array
+          coordinates.push({x: center.x + x, y: center.y + y});
+          coordinates.push({x: center.x - x, y: center.y + y});
+          coordinates.push({x: center.x + x, y: center.y - y});
+          coordinates.push({x: center.x - x, y: center.y - y});
+          coordinates.push({x: center.x + y, y: center.y + x});
+          coordinates.push({x: center.x - y, y: center.y + x});
+          coordinates.push({x: center.x + y, y: center.y - x});
+          coordinates.push({x: center.x - y, y: center.y - x});
+      
+          // Update the values of x and y based on the decision criterion
+          y++;
+          if (decisionOver2 <= 0) {
+            decisionOver2 += 2 * y + 1;
+          } else {
+            x--;
+            decisionOver2 += 2 * (y - x) + 1;
+          }
+        }
+      
+        // Return the array of coordinates
+        return coordinates;
+      },
     adjustTSJ: (filepath) => {
         let json = JSONread(filepath);
         json.tileheight = 32
@@ -1667,6 +1701,55 @@ function importMap(filepath, j) {
 function addNewOmTerrainToMap() {
     return tiled.activeAsset.isTileMap ? tiled.activeAsset.addLayer(makeNewOmTerrain([tiled.activeAsset.width, tiled.activeAsset.height])) : tiled.log(`No tilemap found to add layer.`)
 }
+function make_guide_from_shape(){
+    if (!cache.hasOwnProperty("diagonal_stripes")) {
+        if (!cache.hasOwnProperty(config.path_to_meta_tileset)) { cache[config.path_to_meta_tileset] = JSONread(config.path_to_meta_tileset) }
+        let tsjTiles = cache[config.path_to_meta_tileset]
+        tileloop:
+        for (let tile_i in tsjTiles.tiles) {
+            let _this_tile = tsjTiles.tiles[tile_i]
+            for (let property in _this_tile.properties) {
+                let _this_property = _this_tile.properties[property]
+                if (_this_property.value == "diagonal_stripes") {
+                    if (!cache.hasOwnProperty(config.meta_tileset)) { cache[config.meta_tileset] = tiled.open(config.path_to_meta_tileset) }
+                    cache.diagonal_stripes = cache[config.meta_tileset].findTile(_this_tile.id)
+                    break tileloop
+                }
+            }
+        }
+    }
+    let center = {}
+    let map = tiled.activeAsset
+    if(!tiled.activeAsset.hasOwnProperty("selectedObjects")){
+        return tiled.log(`No selection detected. Try again, sometimes this happens.`)
+    }
+    let obj = tiled.activeAsset.selectedObjects[0]
+    if(!obj){return tiled.log(`no object selected (select a circle)`);}
+    tiled.log(`(${obj.x},${obj.y}) r: ${obj.width/64}`)
+    center.x = Math.floor((obj.x+(obj.width/2))/32)
+    center.y = Math.floor((obj.y+(obj.height/2))/32)
+    let coordinates = cte.getCircleCoordinates(center,Math.floor(obj.width/64))
+    let layername = `${obj.name}_projected_tiles`
+    let layer;
+    for(let layer in map.layers){
+        if(map.layers[layer].name === layername){
+            map.removeLayer(map.layers[layer])
+            break
+        }
+    }
+    layer = new TileLayer(layername)
+    layer.setProperty(`source_geometry`,obj)
+    layer.opacity = 0.5
+    let le = layer.edit();
+
+    for(let coord in coordinates){
+        tiled.log(`output coord (${coordinates[coord].x}, ${coordinates[coord].y})`)
+        le.setTile(coordinates[coord].x,coordinates[coord].y,cache.diagonal_stripes)
+    }
+    le.apply()
+    obj.setProperty(`projected_tiles`,layer)
+    map.addLayer(layer)
+}
 function makeNewOmTerrain(width, height) {
     width = parseInt(width, 10)
     height = parseInt(height, 10)
@@ -1702,12 +1785,11 @@ function makeEmptyMap() {
     tm.addLayer(makeNewOmTerrain([mapsize, mapsize]))
 
 
-    //     // return tiled.mapFormat(format[1]).write(data, filepath);
-    // // (outputFileResults == null) ? tiled.log(FileInfo.baseName(filepath) + " file created successfully.") : tiled.log(FileInfo.baseName(filepath) + " - FAILED to create file. Error: " + outputFileResults)
-    // tiled.open(filepath);
-    tiled.activeAsset = tm
+    // tiled.activeAsset = tm
     let filepath = `${config.path_to_maps}/${tmname}.tmj`
+    tiled.log(filepath)
     let outputFileResults = tiled.mapFormat("json").write(tm, filepath);
+    tiled.open(filepath)
     if (config.snaptogrid) { tiled.trigger("SnapToGrid") }
 }
 
@@ -2340,6 +2422,11 @@ const action_newCDDAGroupLayer = tiled.registerAction("CustomAction_newCDDAGroup
     tiled.log(`${action_newCDDAGroupLayer.text} was run.`)
     initialize() ? addNewOmTerrainToMap() : tiled.log(`Failed to initialize.`)
 });
+// Make guide from shape
+const action_make_guide_from_shape = tiled.registerAction("CustomAction_make_guide_from_shape", function (action_newCDDAGroupLayer) {
+    tiled.log(`${action_make_guide_from_shape.text} was run.`)
+    initialize() ? make_guide_from_shape() : tiled.log(`Failed to initialize.`)
+});
 // Import CDDA Map
 const action_importMap = tiled.registerAction("CustomAction_importMap", function (action_importMap) {
     tiled.log(`${action_importMap.text} was run.`)
@@ -2386,7 +2473,6 @@ const action_cdda_unicode_set_toggle = tiled.registerAction("CustomAction_cdda_u
     tiled.log(action_cdda_unicode_set_toggle.text + " was " + (action_cdda_unicode_set_toggle.checked ? "checked" : "unchecked"))
     action_cdda_unicode_set_toggle.checked ? use_pretty_symbols = true : use_pretty_symbols = false
 });
-
 // test action for debug
 const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", function (action_cdda_debug) {
     tiled.log(`${action_cdda_debug.text} was run.`)
@@ -2397,12 +2483,18 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     // let filepath = config.path_to_maps
     // let dialog = new Dialog()
     // let filepath = cte.folderPicker(pathToUserFolder)
-    for(let key in config){
-        tiled.log(`config.${key} = ${config[key]}`)
-    }
-    tiled.log(config.path_to_cdda)
-    let output = config.path_to_chosen_tileset_files
-    tiled.log(`output: '${output}'`)
+    
+
+    
+    // for(let coord in coordinates){
+    //     tiled.log(`output coord (${coordinates[coord].x}, ${coordinates[coord].y})`)
+    // }
+    // for(let key in config){
+    //     tiled.log(`config.${key} = ${config[key]}`)
+    // }
+    // tiled.log(config.path_to_cdda)
+    // let output = config.path_to_chosen_tileset_files
+    // tiled.log(`output: '${output}'`)
     // filepath = filePicker(filepath)
     // cte.filePicker(filepath);
     // findTileInTilesets(cdda_id_tofind)
@@ -2412,6 +2504,8 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
 action_importTileset.text = "Import CDDA tileset"
 action_createNewMap.text = "Create new CDDA map"
 action_newCDDAGroupLayer.text = "Add new om_terrain to map"
+action_make_guide_from_shape.text = "Make Guide from shape"
+action_make_guide_from_shape.shortcut = "CTRL+SHIFT+G"
 action_importMap.text = "Import CDDA map"
 action_exportMap.text = "Export to CDDA map"
 action_findTileInTilemap.text = "Find CDDA Tile"
@@ -2443,6 +2537,7 @@ tiled.extendMenu("File", [
 tiled.extendMenu("Map", [
     { separator: true },
     { action: "CustomAction_newCDDAGroupLayer", after: "Terrain Sets" },
+    { action: "CustomAction_make_guide_from_shape", after: "Terrain Sets" },
     { action: "CustomAction_cdda_unicode_set_toggle", after: "Terrain Sets" },
     { separator: true }
 ]);
