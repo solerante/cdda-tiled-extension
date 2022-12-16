@@ -643,8 +643,9 @@ function importTilesets() {
     if (!config.path_to_cdda) { return tiled.log("Action cancelled.") }
     cte.updateConfig();
     tiled.log(config.path_to_cdda_tilesets)
-    config.path_to_chosen_cdda_tileset_files = cte.folderPicker(config.path_to_cdda_tilesets, `Path to Tileset for import`)
-    if (!config.path_to_chosen_cdda_tileset_files) { return tiled.log("Action cancelled.") }
+    let dialogoutput = cte.folderPicker(config.path_to_cdda_tilesets, `Path to Tileset for import`)
+    if (!dialogoutput) { return tiled.log("Action cancelled.") }
+    config.path_to_chosen_cdda_tileset_files = dialogoutput
 
     if (config.path_to_chosen_cdda_tileset_files.match(/\.json$/)) { config.path_to_chosen_cdda_tileset_files = FileInfo.path(config.path_to_chosen_cdda_tileset_files) }
 
