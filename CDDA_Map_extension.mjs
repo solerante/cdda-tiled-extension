@@ -1699,6 +1699,17 @@ function importMap(filepath, j) {
     // tiled.open(path_to_maps);
 }
 function make_guide_from_shape(){
+    let center = {}
+    let map = tiled.activeAsset
+    if(!tiled.activeAsset.hasOwnProperty("selectedObjects")){
+        return tiled.log(`No selection detected. Try again, sometimes this happens.`)
+    }
+    if(tiled.activeAsset.selectedObjects.length < 1){
+        return tiled.log(`No selection detected. Try again, sometimes this happens.`)
+    }
+    let obj = tiled.activeAsset.selectedObjects[0]
+    if(!obj){return tiled.log(`no object selected (select a circle)`);}
+
     if (!cache.hasOwnProperty("diagonal_stripes")) {
         if (!cache.hasOwnProperty(config.path_to_meta_tileset)) { cache[config.path_to_meta_tileset] = JSONread(config.path_to_meta_tileset) }
         let tsjTiles = cache[config.path_to_meta_tileset]
@@ -1708,21 +1719,15 @@ function make_guide_from_shape(){
             for (let property in _this_tile.properties) {
                 let _this_property = _this_tile.properties[property]
                 if (_this_property.value == "diagonal_stripes") {
-                    if (!cache.hasOwnProperty(config.meta_tileset)) { cache[config.meta_tileset] = tiled.open(config.path_to_meta_tileset) }
-                    cache.diagonal_stripes = cache[config.meta_tileset].findTile(_this_tile.id)
+                    if (!cache.hasOwnProperty("meta_tileset")) { cache.meta_tileset = tiled.open(config.path_to_meta_tileset);tiled.activeAsset = map }
+                    cache.diagonal_stripes = cache.meta_tileset.findTile(_this_tile.id)
                     break tileloop
                 }
             }
         }
     }
-    let center = {}
-    let map = tiled.activeAsset
-    if(!tiled.activeAsset.hasOwnProperty("selectedObjects")){
-        return tiled.log(`No selection detected. Try again, sometimes this happens.`)
-    }
-    let obj = tiled.activeAsset.selectedObjects[0]
-    if(!obj){return tiled.log(`no object selected (select a circle)`);}
-    tiled.log(`(${obj.x},${obj.y}) r: ${obj.width/64}`)
+    
+    // tiled.log(`(${obj.x},${obj.y}) r: ${obj.width/64}`)
     center.x = Math.floor((obj.x+(obj.width/2))/32)
     center.y = Math.floor((obj.y+(obj.height/2))/32)
     let coordinates = cte.getCircleCoordinates(center,Math.floor(obj.width/64))
@@ -1735,16 +1740,16 @@ function make_guide_from_shape(){
         }
     }
     layer = new TileLayer(layername)
-    layer.setProperty(`source_geometry`,obj)
+    // layer.setProperty(`source_geometry`,obj)
     layer.opacity = 0.5
     let le = layer.edit();
 
     for(let coord in coordinates){
-        tiled.log(`output coord (${coordinates[coord].x}, ${coordinates[coord].y})`)
+        if(verbose >= 1){tiled.log(`output coord (${coordinates[coord].x}, ${coordinates[coord].y})`)}
         le.setTile(coordinates[coord].x,coordinates[coord].y,cache.diagonal_stripes)
     }
     le.apply()
-    obj.setProperty(`projected_tiles`,layer)
+    // obj.setProperty(`projected_tiles`,layer)
     map.addLayer(layer)
 }
 function addNewOmTerrainToMap() {
