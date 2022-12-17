@@ -541,14 +541,12 @@ function add_cdda_id_to_unknowns(cdda_id) {
     }
     if (!cache.hasOwnProperty(config.path_to_meta_tileset)) { cache[config.path_to_meta_tileset] = JSONread(config.path_to_meta_tileset) }
     let tsjTiles = cache[config.path_to_meta_tileset]
-    let unknown_tile_image_path;
-    if (!cache.hasOwnProperty("unknown_tile_image_path")) {
-        tileloop:
+    function get_path_to_tile_image(cdda_id){
         for (let tile_i in tsjTiles.tiles) {
             let _this_tile = tsjTiles.tiles[tile_i]
             for (let property in _this_tile.properties) {
                 let _this_property = _this_tile.properties[property]
-                if (_this_property.value == "unknown_tile") {
+                if (_this_property.value == cdda_id) {
                     let path;
                     if (FileInfo.isAbsolutePath(_this_tile.image)) {
                         path = _this_tile.image
@@ -557,11 +555,17 @@ function add_cdda_id_to_unknowns(cdda_id) {
                     }
                     cache.unknown_tile_image_path = path
                     tiled.log(`path to unknown tile image ${cache.unknown_tile_image_path}`)
-                    break tileloop
+                    return
                 }
             }
         }
     }
+    if (!cache.hasOwnProperty("unknown_tile_image_path")) {
+        get_path_to_tile_image("unknown_tile")
+    } else if (cache.unknown_tile_image_path === undefined){
+        get_path_to_tile_image("unknown_tile")
+    }
+    if(cache.unknown_tile_image_path == undefined){ return }
     // return unknown tile if already made
     if (File.exists(config.path_to_unknowns_tileset)) {
         let unknown_tsj_tiles = JSONread(config.path_to_unknowns_tileset)
@@ -1042,7 +1046,7 @@ function importMapChoiceDialog(filepath) {
     let j = JSON.parse(c);
 
     if (tiled.platform === "windows") {
-        filepath = `file:///${filepath}`
+        // filepath = `file:///${filepath}`
     } else {
         filepath = `/${filepath}`;
     }
@@ -1133,7 +1137,11 @@ Don't forget to SAVE YOUR MAP`, true)
     })
     dialog.show()
     dialog.exec();
-    return cont ? [filepath.replace(/^file\:\/\/\//, ""), chosenEntries] : false;
+    if (tiled.platform === "windows") {
+        return cont ? [filepath.replace(/^file\:\/\/\//, ""), chosenEntries] : false;
+    } else {
+        return cont ? [filepath.replace(/^file\:\/\//, ""), chosenEntries] : false;
+    }
 }
 
 function importMap(filepath, j) {
