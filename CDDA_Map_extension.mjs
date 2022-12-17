@@ -8,8 +8,8 @@ var use_pretty_symbols = true
 
 const pathToUserFolder = tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1]
 const pathToExtras = `${tiled.extensionsPath}/cdda_map_extension_extras`
-const pathToMainConfig = `${tiled.extensionsPath}/../cdda_map_extension_main_config.json`
 const configfilename = "cdda_tiled_extension_config.json";
+const pathToMainConfig = `${tiled.extensionsPath}/../cdda_tiled_extension_main_config.json`
 
 const mapLayerTypes = ["terrain", "furniture", "traps", "vehicles", "items"]
 const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields", "place_zones"]
