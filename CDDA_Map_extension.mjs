@@ -198,10 +198,8 @@ const cte = { // helper functions
         dialog.accepted.connect(() => {
             if (tiled.platform === "windows") {
                 newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\/\//, "");
-                // filepath = `file:///${filepath}`
             } else {
-                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\//, "");
-                // filepath = `/${filepath}`;
+                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\//, "");
             }
             cont = true;
         });
@@ -231,10 +229,8 @@ const cte = { // helper functions
         dialog.accepted.connect(() => {
             if (tiled.platform === "windows") {
                 newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\/\//, "");
-                // filepath = `file:///${filepath}`
             } else {
-                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\//, "");
-                // filepath = `/${filepath}`;
+                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\//, "");
             }
             cont = true;
         });
@@ -244,15 +240,11 @@ const cte = { // helper functions
     },
     filePicker_old: function filePicker_old(func, filepath) {
         let dialog = new Dialog()
-        // if(dialog===undefined){dialog = new Dialog();}
         filepath == undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath)
         let newFilepath;
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
         fileEdit.fileUrl = filepath;
-        // tiled.log(fileEdit.fileUrl)
-        // tiled.log(fileEdit.fileUrl.toString())
-        // tiled.log(filepath)
         let acceptButton = dialog.addButton(`Accept`);
         let cancelButton = dialog.addButton(`Cancel`);
         acceptButton.clicked.connect(function () {
@@ -264,10 +256,8 @@ const cte = { // helper functions
         dialog.accepted.connect(() => {
             if (tiled.platform === "windows") {
                 newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\/\//, "");
-                // filepath = `file:///${filepath}`
             } else {
-                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\//, "");
-                // filepath = `/${filepath}`;
+                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\//, "");
             }
             // tiled.log(fileEdit.fileUrl.toString());
             // tiled.log(newFilepath);
@@ -1044,12 +1034,6 @@ function importMapChoiceDialog(filepath) {
     let c = f.readAll();
     f.close();
     let j = JSON.parse(c);
-
-    if (tiled.platform === "windows") {
-        // filepath = `file:///${filepath}`
-    } else {
-        filepath = `/${filepath}`;
-    }
     let dialog = new Dialog()
     dialog.windowTitle = `Select Maps to Import`
     dialog.addLabel(`Select maps (om_terains or [n] nested) to import from map file '${FileInfo.fileName(filepath)}'.\n
@@ -1140,7 +1124,7 @@ Don't forget to SAVE YOUR MAP`, true)
     if (tiled.platform === "windows") {
         return cont ? [filepath.replace(/^file\:\/\/\//, ""), chosenEntries] : false;
     } else {
-        return cont ? [filepath.replace(/^file\:\/\//, ""), chosenEntries] : false;
+        return cont ? [filepath.replace(/^file\:\//, ""), chosenEntries] : false;
     }
 }
 
@@ -1735,7 +1719,7 @@ function make_guide_from_shape(){
             }
         }
     }
-    
+    if(cache.diagonal_stripes === undefined){return tiled.log(`tile for diagonal_stripes not found`)}
     // tiled.log(`(${obj.x},${obj.y}) r: ${obj.width/64}`)
     center.x = Math.floor((obj.x+(obj.width/2))/32)
     center.y = Math.floor((obj.y+(obj.height/2))/32)
