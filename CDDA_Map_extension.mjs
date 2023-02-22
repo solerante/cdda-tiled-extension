@@ -637,7 +637,7 @@ function importTilesets() {
     if (!config.path_to_cdda) { return tiled.log("Action cancelled.") }
     cte.updateConfig();
     tiled.log(config.path_to_cdda_tilesets)
-    let dialogoutput = cte.folderPicker(config.path_to_cdda_tilesets, `Path to Tileset for import`)
+    let dialogoutput = chooseTilesetDialog(config.path_to_cdda_tilesets)
     if (!dialogoutput) { return tiled.log("Action cancelled.") }
     config.path_to_chosen_cdda_tileset_files = dialogoutput
 
@@ -967,10 +967,46 @@ function buildTilePaletteDict(import_map) {
                 // if string
                 if (typeof import_map.object[mapLayerType][key] === "string") {
                     thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key]
+                    continue
                 }
+                // TODO import items as objects
+                // if array
                 if (Array.isArray(import_map.object[mapLayerType][key])) {
-                    thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key][0]
+                    if(import_map.object[mapLayerType][key][0].hasOwnProperty("constructor")){
+                        if(import_map.object[mapLayerType][key][0].constructor = Object){
+                            if(import_map.object[mapLayerType][key][0].hasOwnProperty("item")){
+                                thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key][0].item
+                                continue
+                            }
+                        }
+                    }
+                    if(Array.isArray(import_map.object[mapLayerType][key][0])){
+                        if (typeof import_map.object[mapLayerType][key][0][0] === "string") {
+                            thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key][0][0]
+                            continue
+                        }
+                    }
+                    if (typeof import_map.object[mapLayerType][key][0] === "string") {
+                        thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key][0]
+                        continue
+                    }
+                    continue
                     // thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key][Math.floor(Math.random() * import_map.object[mapLayerType][key].length)]
+                }
+                // if object
+                if(import_map.object[mapLayerType][key].constructor = Object){
+                    if(import_map.object[mapLayerType][key].hasOwnProperty("field")){
+                        thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key].field
+                        continue
+                    }
+                    if(import_map.object[mapLayerType][key].hasOwnProperty("monster")){
+                        thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key].monster
+                        continue
+                    }
+                    if(import_map.object[mapLayerType][key].hasOwnProperty("item")){
+                        thisPalette[mapLayerType][key] = import_map.object[mapLayerType][key].item
+                        continue
+                    }
                 }
 
                 tiled.log(`custom key '${key}' > '${thisPalette[mapLayerType][key]}'\tadded to palette'${mapLayerType}'.`)
@@ -1024,6 +1060,34 @@ function buildTilePaletteDict(import_map) {
     return mapPalette;
 }
 
+function chooseTilesetDialog(filepath) {
+    if (!filepath) { return tiled.log("Action cancelled.") }
+
+    let folder_list = cte.getFoldersInPath(filepath)
+    tiled.log(folder_list)
+    let response
+    let dialog = new Dialog()
+    dialog.windowTitle = "select a tileset"
+    dialog.addLabel("Select a tileset from the list.", true)
+    dialog.addNewRow()
+
+    let selection = dialog.addComboBox(`Tilesets:`, folder_list)
+
+    let cancelButton = dialog.addButton(`Cancel`);
+    let acceptButton = dialog.addButton(`Select`);
+    acceptButton.clicked.connect(function () {
+        response = `${filepath}/${folder_list[selection.currentIndex]}`
+        dialog.accept();
+    })
+    cancelButton.clicked.connect(function () {
+        dialog.reject();
+    })
+    dialog.accepted.connect(() => {
+    })
+    dialog.show()
+    dialog.exec()
+    return response
+}
 function importMapChoiceDialog(filepath) {
     // if([`linux`,`unix`,`macos`].includes(tiled.platform)){if(verbose >=1){tiled.log(`nix system`);};filepath = `/${filepath}`;}
     if (!filepath) { return tiled.log("Action cancelled.") }
@@ -2474,6 +2538,8 @@ const action_cdda_unicode_set_toggle = tiled.registerAction("CustomAction_cdda_u
 const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", function (action_cdda_debug) {
     tiled.log(`${action_cdda_debug.text} was run.`)
     initialize()
+    let test = chooseTilesetDialog(config.path_to_cdda_tilesets)
+    test ? tiled.log(test) : tiled.log("cancelled")
     // tiled.log(tiled.actions)
     // tiled.trigger("CustomAction_CDDA_add_sprite_to_favotires")
     // initialize()
