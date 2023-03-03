@@ -6,7 +6,6 @@
 var verbose = false
 var use_pretty_symbols = false
 
-const pathToUserFolder = tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1]
 const pathToExtras = `${tiled.extensionsPath}/cdda_map_extension_extras`
 const configfilename = "cdda_tiled_extension_config.json";
 
@@ -100,40 +99,6 @@ var imageCache = {};
 var cache = {};
 
 const cte = { // helper functions
-    getCircleCoordinates: function getCircleCoordinates(center, radius) {
-        // Create an empty array to store the circle coordinates
-        const coordinates = [];
-      
-        // Define the variables for the algorithm
-        let x = radius;
-        let y = 0;
-        let decisionOver2 = 1 - x;   // Decision criterion divided by 2 evaluated at x=r, y=0
-      
-        // Loop through all values of x and y for the circle
-        while (y <= x) {
-          // Add the coordinates for the current x and y values to the array
-          coordinates.push({x: center.x + x, y: center.y + y});
-          coordinates.push({x: center.x - x, y: center.y + y});
-          coordinates.push({x: center.x + x, y: center.y - y});
-          coordinates.push({x: center.x - x, y: center.y - y});
-          coordinates.push({x: center.x + y, y: center.y + x});
-          coordinates.push({x: center.x - y, y: center.y + x});
-          coordinates.push({x: center.x + y, y: center.y - x});
-          coordinates.push({x: center.x - y, y: center.y - x});
-      
-          // Update the values of x and y based on the decision criterion
-          y++;
-          if (decisionOver2 <= 0) {
-            decisionOver2 += 2 * y + 1;
-          } else {
-            x--;
-            decisionOver2 += 2 * (y - x) + 1;
-          }
-        }
-      
-        // Return the array of coordinates
-        return coordinates;
-      },
     adjustTSJ: (filepath) => {
         let json = JSONread(filepath);
         json.tileheight = 32
@@ -1715,60 +1680,6 @@ function importMap(filepath, j) {
     // (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
     // tiled.open(path_to_maps);
 }
-function make_guide_from_shape(){
-    let center = {}
-    let map = tiled.activeAsset
-    if(!tiled.activeAsset.hasOwnProperty("selectedObjects")){
-        return tiled.log(`No selection detected. Try again, sometimes this happens.`)
-    }
-    if(tiled.activeAsset.selectedObjects.length < 1){
-        return tiled.log(`No selection detected. Try again, sometimes this happens.`)
-    }
-    let obj = tiled.activeAsset.selectedObjects[0]
-    if(!obj){return tiled.log(`no object selected (select a circle)`);}
-
-    if (!cache.hasOwnProperty("diagonal_stripes")) {
-        if (!cache.hasOwnProperty(config.path_to_meta_tileset)) { cache[config.path_to_meta_tileset] = JSONread(config.path_to_meta_tileset) }
-        let tsjTiles = cache[config.path_to_meta_tileset]
-        tileloop:
-        for (let tile_i in tsjTiles.tiles) {
-            let _this_tile = tsjTiles.tiles[tile_i]
-            for (let property in _this_tile.properties) {
-                let _this_property = _this_tile.properties[property]
-                if (_this_property.value == "diagonal_stripes") {
-                    if (!cache.hasOwnProperty("meta_tileset")) { cache.meta_tileset = tiled.open(config.path_to_meta_tileset);tiled.activeAsset = map }
-                    cache.diagonal_stripes = cache.meta_tileset.findTile(_this_tile.id)
-                    break tileloop
-                }
-            }
-        }
-    }
-    if(cache.diagonal_stripes === undefined){return tiled.log(`tile for diagonal_stripes not found`)}
-    // tiled.log(`(${obj.x},${obj.y}) r: ${obj.width/64}`)
-    center.x = Math.floor((obj.x+(obj.width/2))/32)
-    center.y = Math.floor((obj.y+(obj.height/2))/32)
-    let coordinates = cte.getCircleCoordinates(center,Math.floor(obj.width/64))
-    let layername = `${obj.name}_projected_tiles`
-    let layer;
-    for(let layer in map.layers){
-        if(map.layers[layer].name === layername){
-            map.removeLayer(map.layers[layer])
-            break
-        }
-    }
-    layer = new TileLayer(layername)
-    // layer.setProperty(`source_geometry`,obj)
-    layer.opacity = 0.5
-    let le = layer.edit();
-
-    for(let coord in coordinates){
-        if(verbose >= 1){tiled.log(`output coord (${coordinates[coord].x}, ${coordinates[coord].y})`)}
-        le.setTile(coordinates[coord].x,coordinates[coord].y,cache.diagonal_stripes)
-    }
-    le.apply()
-    // obj.setProperty(`projected_tiles`,layer)
-    map.addLayer(layer)
-}
 function addNewOmTerrainToMap() {
     return tiled.activeAsset.isTileMap ? tiled.activeAsset.addLayer(makeNewOmTerrain([tiled.activeAsset.width, tiled.activeAsset.height])) : tiled.log(`No tilemap found to add layer.`)
 }
@@ -2445,11 +2356,6 @@ const action_newCDDAGroupLayer = tiled.registerAction("CustomAction_newCDDAGroup
     tiled.log(`${action_newCDDAGroupLayer.text} was run.`)
     initialize() ? addNewOmTerrainToMap() : tiled.log(`Failed to initialize.`)
 });
-// Make guide from shape
-const action_make_guide_from_shape = tiled.registerAction("CustomAction_make_guide_from_shape", function (action_newCDDAGroupLayer) {
-    tiled.log(`${action_make_guide_from_shape.text} was run.`)
-    initialize() ? make_guide_from_shape() : tiled.log(`Failed to initialize.`)
-});
 // Import CDDA Map
 const action_importMap = tiled.registerAction("CustomAction_importMap", function (action_importMap) {
     tiled.log(`${action_importMap.text} was run.`)
@@ -2529,8 +2435,6 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
 action_importTileset.text = "Import CDDA tileset"
 action_createNewMap.text = "Create new CDDA map"
 action_newCDDAGroupLayer.text = "Add new om_terrain to map"
-action_make_guide_from_shape.text = "Make Guide from shape"
-action_make_guide_from_shape.shortcut = "CTRL+SHIFT+G"
 action_importMap.text = "Import CDDA map"
 action_exportMap.text = "Export to CDDA map"
 action_findTileInTilemap.text = "Find CDDA Tile"
@@ -2562,7 +2466,6 @@ tiled.extendMenu("File", [
 tiled.extendMenu("Map", [
     { separator: true },
     { action: "CustomAction_newCDDAGroupLayer", after: "Terrain Sets" },
-    { action: "CustomAction_make_guide_from_shape", after: "Terrain Sets" },
     { action: "CustomAction_cdda_unicode_set_toggle", after: "Terrain Sets" },
     { separator: true }
 ]);
