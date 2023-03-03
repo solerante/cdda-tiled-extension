@@ -4,12 +4,11 @@
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
 var verbose = false
-var use_pretty_symbols = true
+var use_pretty_symbols = false
 
 const pathToUserFolder = tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1]
 const pathToExtras = `${tiled.extensionsPath}/cdda_map_extension_extras`
 const configfilename = "cdda_tiled_extension_config.json";
-const pathToMainConfig = `${tiled.extensionsPath}/../cdda_tiled_extension_main_config.json`
 
 const mapLayerTypes = ["terrain", "furniture", "traps", "vehicles", "items"]
 const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields", "place_zones"]
@@ -97,7 +96,6 @@ const no_id_objects = ["rows", "palettes", "fill_ter", "//", "id", "type"]
 var skipOverwrite = true;
 var overwriteExisting = true;
 var config = {};
-var mainConfig = {};
 var imageCache = {};
 var cache = {};
 
@@ -144,11 +142,6 @@ const cte = { // helper functions
         update_json.write(JSON.stringify(json, null, 2));
         update_json.commit();
     },
-    updateMainConfig: function updateMainConfig() {
-        var updateConfigfile = new TextFile(pathToMainConfig, TextFile.WriteOnly);
-        updateConfigfile.write(JSON.stringify(mainConfig, null, `\t`));
-        updateConfigfile.commit();
-    },
     replaceNewlines: function replaceNewlines(str) {
         // Use the regular expression to find objects with 4 or fewer entries
         var regex = /\[\n(?:.*?,(\n)){0,4}(?:.*?(\n)).*?],?/gm;
@@ -179,7 +172,7 @@ const cte = { // helper functions
         dialog.addNewRow()
         let cont = false;
         // if(dialog===undefined){dialog = new Dialog();}
-        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath);
+        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(FileInfo.path(tiled.projectFilePath)) : filepath = FileInfo.fromNativeSeparators(filepath);
         let newFilepath;
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
@@ -213,7 +206,7 @@ const cte = { // helper functions
         title ? dialog.windowTitle = title : dialog.windowTitle;
         let cont = false;
         // if(dialog===undefined){dialog = new Dialog();}
-        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath);
+        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(FileInfo.path(tiled.projectFilePath)) : filepath = FileInfo.fromNativeSeparators(filepath);
         let newFilepath;
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
@@ -240,7 +233,7 @@ const cte = { // helper functions
     },
     filePicker_old: function filePicker_old(func, filepath) {
         let dialog = new Dialog()
-        filepath == undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath)
+        filepath == undefined ? filepath = FileInfo.fromNativeSeparators(FileInfo.path(tiled.projectFilePath)) : filepath = FileInfo.fromNativeSeparators(filepath)
         let newFilepath;
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
@@ -328,14 +321,14 @@ const cte = { // helper functions
     },
     load_config: () => {
         let loaded_config;
-        var pathToConfig = `${mainConfig.pathToProject}/${configfilename}`
+        var pathToConfig = `${FileInfo.path(tiled.projectFilePath)}/${configfilename}`
         if(File.exists(pathToConfig)){
             config = JSONread(pathToConfig)
         } else {
             config = {
                 chosen_tileset: `ChibiUltica`,
                 snaptogrid: true
-            } // new extensionConfig(mainConfig.pathToProject);
+            } // new extensionConfig(FileInfo.path(tiled.projectFilePath));
         }
         add_config_properties()
         // for(let key in loaded_config){
@@ -346,7 +339,7 @@ const cte = { // helper functions
         // tiled.log(config.path_to_cdda_palettes)
     },
     updateConfig: function updateConfig() {
-        var pathToConfig = `${mainConfig.pathToProject}/${configfilename}`
+        var pathToConfig = `${FileInfo.path(tiled.projectFilePath)}/${configfilename}`
         var configfile = new TextFile(pathToConfig, TextFile.WriteOnly);
         for(let key in config){
             if(key.match(/(?:\"get|\"set)/)){delete config[key]()}
@@ -402,62 +395,28 @@ const cte = { // helper functions
 }
 
 function initialize() {
-    if (!File.exists(pathToMainConfig)) {
-        action_cdda_verbose.checked = true
-        mainConfig = { "pathToProject": pathToUserFolder }
-        prepareMainConfig(mainConfig.pathToProject)
-        loadMainConfig()
+    action_cdda_verbose.checked = true
+
+    var pathToConfig = `${ FileInfo.path(tiled.projectFilePath)}/${configfilename}`
+
+    if (!File.exists(pathToConfig)) {
+        tiled.log(`no config file found at ${pathToConfig}. Making new config file.`)
+        config = new extensionConfig(FileInfo.path(tiled.projectFilePath));
+        config.path_to_cdda = !config.hasOwnProperty(`path_to_cdda`) ? getpathToCDDA() : config.path_to_cdda
+        if (!config.path_to_cdda) { return }
+        cte.updateConfig()
+        add_config_properties()
     } else {
-        loadMainConfig()
-        return true
+        if (verbose >= 2) { tiled.log(`config file found at ${pathToConfig}`); }
+        // config = JSONread(pathToConfig)
+        cte.load_config()
     }
-    function prepareMainConfig(filepath) {
-        var mainConfigfile = new TextFile(pathToMainConfig, TextFile.WriteOnly);
-
-        tiled.log(`generating main config file at '${pathToMainConfig}'`)
-        changeProjectPath()
-    }
-    function loadMainConfig() { // TODO fix main config to single function<<
-        if (!File.exists(pathToMainConfig)) {
-            mainConfig = { "pathToProject": pathToUserFolder }
-            var mainConfigfile = new TextFile(pathToMainConfig, TextFile.WriteOnly);
-            // prepareMainConfig(mainConfig.pathToProject)
-        }
-        mainConfig = JSONread(pathToMainConfig)
-        if (mainConfig.pathToProject.match(/\.json$/)) {
-            mainConfig.pathToProject = FileInfo.path(mainConfig.pathToProject)
-        }
-        var pathToConfig = `${mainConfig.pathToProject}/${configfilename}`
-        if (!File.exists(mainConfig.pathToProject)) { File.makePath(mainConfig.pathToProject); }
-
-        if (!File.exists(pathToConfig)) {
-            tiled.log(`no config file found at ${pathToConfig}. Making new config file.`)
-            config = new extensionConfig(mainConfig.pathToProject);
-            config.path_to_cdda = !config.hasOwnProperty(`path_to_cdda`) ? getpathToCDDA() : config.path_to_cdda
-            if (!config.path_to_cdda) { return }
-            cte.updateConfig()
-            add_config_properties()
-        } else {
-            if (verbose >= 2) { tiled.log(`config file found at ${pathToConfig}`); }
-            // config = JSONread(pathToConfig)
-            cte.load_config()
-        }
-        if (!File.exists(config.path_to_tilesets)) { File.makePath(config.path_to_tilesets); }
-        if (!File.exists(config.path_to_maps)) { File.makePath(config.path_to_maps); }
-        return 1;
-    }
-}
-function changeProjectPath() {
-    var pathToProject = cte.folderPicker(mainConfig.pathToProject, "Path to Tiled project")
-    if (!pathToProject) { return false; }
-    tiled.log(`Path to project set to '${pathToProject}'`)
-    if (pathToProject && pathToProject != mainConfig.pathToProject) {
-        mainConfig.pathToProject = pathToProject;
-        cte.updateMainConfig();
-    }
+    if (!File.exists(config.path_to_tilesets)) { File.makePath(config.path_to_tilesets); }
+    if (!File.exists(config.path_to_maps)) { File.makePath(config.path_to_maps); }
+    return 1;
 }
 function getpathToCDDA(){
-    return cte.folderPicker(config.hasOwnProperty(`path_to_cdda`) ? config.path_to_cdda : mainConfig.pathToProject, `Path to CDDA folder`)
+    return cte.folderPicker(config.hasOwnProperty(`path_to_cdda`) ? config.path_to_cdda : FileInfo.path(tiled.projectFilePath), `Path to CDDA folder`)
 }
 function addSpriteToFavotires() {
     let originalAsset = tiled.activeAsset
@@ -1253,6 +1212,7 @@ function importMap(filepath, j) {
         // check if has fill_ter, TODO remove later
         if (import_map.object.hasOwnProperty("fill_ter")) { if (verbose >= 1) { tiled.log(`Has fill_ter: ${import_map.object.fill_ter}`); }; }
 
+        // find map size
         if (import_map.object.hasOwnProperty("mapgensize")) {
             for (let y; y < import_map.object.mapgensize[1]; y++) {
                 mapArray.push(" ".repeat(import_map.object.mapgensize[0]))
@@ -1931,9 +1891,8 @@ function exportMap(map) {
         let coordinate_assignments = {}; // (x,y): [cdda_ids]
 
         // get all cdda ids associated with each symbol in palette, by symbol
-        let palette_objects_with_symbols = ["terrain", "furniture"]
         for (let palette of loaded_palettes) { // get symbols from palette by layer (terrain, furniture, items, etc.) to avoid using for custom assignment
-            for (let object of palette_objects_with_symbols) {
+            for (let object of mapLayerTypes) {
                 if (!palette.hasOwnProperty(object)) { continue; }
                 for (let symbol of Object.keys(palette[object])) {
 
@@ -2073,7 +2032,7 @@ function exportMap(map) {
                     layer_map_array[y] = layer_map_array[y].slice(0, x) + possible_symbol + layer_map_array[y].slice(x + 1)
 
 
-                    for (let entry of palette_objects_with_symbols) {
+                    for (let entry of mapLayerTypes) {
                         if (coordinate_assignments[coordinate].hasOwnProperty(entry)) {
                             coordinate_assignments[coordinate][entry]
                         }
@@ -2089,7 +2048,7 @@ function exportMap(map) {
             // custom symbols
 
             // previously defined symbol
-            for (let object of palette_objects_with_symbols) {
+            for (let object of mapLayerTypes) {
             }
             for (let symbol of Object.keys(custom_symbols_dict)) {
                 if (
@@ -2105,9 +2064,9 @@ function exportMap(map) {
             // newly defined symbol
             let symbolstouse = ""
             let cdda_ids_in_tile = cte.flattenDict(coordinate_assignments[coordinate])
-            let symbol_group_to_use = `pretty`
-            if (!use_pretty_symbols) {
-                symbol_group_to_use = `us_keyboard`
+            let symbol_group_to_use = `us_keyboard`
+            if (use_pretty_symbols) {
+                symbol_group_to_use = `pretty`
             }
             for (let searchTerm in utf_ramps[symbol_group_to_use]) {
                 let re = new RegExp(`(${searchTerm})`)
@@ -2126,8 +2085,11 @@ function exportMap(map) {
                     if (Array.isArray(entry_ready) && entry_ready.length === 1) {
                         entry_ready = entry_ready[0]
                     }
-                    if (entry == "terrain") { mapEntry.object.terrain[symbol] = entry_ready; }
-                    if (entry == "furniture") { mapEntry.object.furniture[symbol] = entry_ready; }
+                    for (let mapLayerType of mapLayerTypes){
+                        if (entry == mapLayerType) { mapEntry.object[mapLayerType][symbol] = entry_ready; }
+                    }
+                    // if (entry == "terrain") { mapEntry.object.terrain[symbol] = entry_ready; }
+                    // if (entry == "furniture") { mapEntry.object.furniture[symbol] = entry_ready; }
                 }
                 continue coordinate_entry_loop;
             }
@@ -2356,7 +2318,7 @@ const setconfig = new Proxy(config, {
 })
 function add_config_properties(){ 
     Object.defineProperty(config,"path_to_project",{
-        get: function() { return mainConfig.pathToProject; },
+        get: function() { return FileInfo.path(tiled.projectFilePath); },
     });
     // Object.defineProperty(config,"set_path_to_project",{
     //     set: function(value) { this.path_to_project = FileInfo.fromNativeSeparators(value) }
@@ -2390,7 +2352,7 @@ function add_config_properties(){
         get: function() { return `${this.path_to_chosen_cdda_tileset_files}/tile_config.json`; }
     });
     Object.defineProperty(config,"path_to_tilesets",{
-        get: function() { return `${mainConfig.pathToProject}/tilesets`; }
+        get: function() { return `${FileInfo.path(tiled.projectFilePath)}/tilesets`; }
     });
     Object.defineProperty(config,"path_to_chosen_tileset_files",{
         get: function() { return `${this.path_to_tilesets}/${this.chosen_tileset}`; }
@@ -2405,7 +2367,7 @@ function add_config_properties(){
         get: function() { return `${this.path_to_tilesets}/favorites/favorites.tsj`; }
     });
     Object.defineProperty(config,"path_to_maps",{
-        get: function() { return `${mainConfig.pathToProject}/maps`; }
+        get: function() { return `${FileInfo.path(tiled.projectFilePath)}/maps`; }
     });
     function getconfig(k){return config[k]}
 }
