@@ -5,14 +5,9 @@ Add the extension and extras folder to your [Tiled](https://www.mapeditor.org/) 
 
 The 'extras' folder contains png images for the extension tileset. This adds relative tiles like region groundcover.
 
-## Update v0.2.0
+## Update v0.2.2
 
-All paths shifted. If updating, delete old extension files and configs. May or may not load with old maps.
-
-- unknown cdda ids assigned question mark tile.
-- all tsx files now tsj.
-- all tmx files now tmj.
-- folders renamed.
+Last Version for Tiled 1.9.2
 
 ### [Check out the wiki for details and how-to](https://github.com/solerante/tiled-cdda-map-extension/wiki)
 
