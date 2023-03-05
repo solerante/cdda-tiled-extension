@@ -3,15 +3,16 @@
 //0x400 | 0x2000 | 0x4000 qdir filter for dir no dot and dotdot
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
+if(tiled.versionLessThan(`1.9.91`)){
+    tiled.log(`WARNING: version less than 1.9.91`)
+}
 var verbose = false
-var use_pretty_symbols = true
+var use_pretty_symbols = false
 
-const pathToUserFolder = tiled.extensionsPath.match(/(.*?(?:Users|home)(?:\/|\\|\\\\)\w+)/i)[1]
 const pathToExtras = `${tiled.extensionsPath}/cdda_map_extension_extras`
 const configfilename = "cdda_tiled_extension_config.json";
-const pathToMainConfig = `${tiled.extensionsPath}/../cdda_tiled_extension_main_config.json`
 
-const mapLayerTypes = ["terrain", "furniture", "traps", "vehicles", "items"]
+const mapLayerTypes = ["terrain", "furniture", "traps", "vehicles"] // , "items"
 const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields", "place_zones"]
 const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN", "ALLOW_TERRAIN_UNDER_OTHER_DATA", "NO_UNDERLYING_ROTATE", "AVOID_CREATURES"]
 const utf_ramps = {
@@ -94,48 +95,19 @@ const utf_ramps = {
 }
 const no_id_objects = ["rows", "palettes", "fill_ter", "//", "id", "type"]
 
+// let checkmarkImage = new Image();
+// checkmarkImage.loadFromData(Base64.decode("PHN2ZyB3aWR0aD0iMTkuMjEzMTUiIGhlaWdodD0iMTguMjk0OTk0IiB2ZXJzaW9uPSIxLjAiPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOTIuOTA1LC01MTYuMDIwNjQpIj48cGF0aCBzdHlsZT0iZmlsbDojMDBmZjAwIiBkPSJNIDE5Ny42Nzk2OCw1MzQuMzE1NjMgQyAxOTcuNDA0NjgsNTM0LjMxMjA4IDE5Ni4yMTc4OCw1MzIuNTM3MTkgMTk1LjA0MjM0LDUzMC4zNzE0MyBMIDE5Mi45MDUsNTI2LjQzMzY4IEwgMTkzLjQ1OTAxLDUyNS44Nzk2OCBDIDE5My43NjM3MSw1MjUuNTc0OTcgMTk0LjU4MjY5LDUyNS4zMjU2NyAxOTUuMjc4OTYsNTI1LjMyNTY3IEwgMTk2LjU0NDksNTI1LjMyNTY3IEwgMTk3LjE4MTI5LDUyNy4zMzA3NiBMIDE5Ny44MTc2OCw1MjkuMzM1ODQgTCAyMDIuODgyMTUsNTIzLjc5NDUxIEMgMjA1LjY2NzYxLDUyMC43NDY3OCAyMDguODg1MjIsNTE3Ljc1MDg1IDIxMC4wMzIzOSw1MTcuMTM2OTEgTCAyMTIuMTE4MTUsNTE2LjAyMDY0IEwgMjA3LjkwODcxLDUyMC44MDI4MiBDIDIwNS41OTM1MSw1MjMuNDMzMDIgMjAyLjQ1NzM1LDUyNy41NTA4NSAyMDAuOTM5NDcsNTI5Ljk1MzU1IEMgMTk5LjQyMTU5LDUzMi4zNTYyNSAxOTcuOTU0NjgsNTM0LjMxOTE5IDE5Ny42Nzk2OCw1MzQuMzE1NjMgeiIvPjwvZz48L3N2Zz4="), "svg");
+// let checkMark = dialog.addImage('', checkmarkImage);
+
+
+
 var skipOverwrite = true;
 var overwriteExisting = true;
 var config = {};
-var mainConfig = {};
 var imageCache = {};
 var cache = {};
 
 const cte = { // helper functions
-    getCircleCoordinates: function getCircleCoordinates(center, radius) {
-        // Create an empty array to store the circle coordinates
-        const coordinates = [];
-      
-        // Define the variables for the algorithm
-        let x = radius;
-        let y = 0;
-        let decisionOver2 = 1 - x;   // Decision criterion divided by 2 evaluated at x=r, y=0
-      
-        // Loop through all values of x and y for the circle
-        while (y <= x) {
-          // Add the coordinates for the current x and y values to the array
-          coordinates.push({x: center.x + x, y: center.y + y});
-          coordinates.push({x: center.x - x, y: center.y + y});
-          coordinates.push({x: center.x + x, y: center.y - y});
-          coordinates.push({x: center.x - x, y: center.y - y});
-          coordinates.push({x: center.x + y, y: center.y + x});
-          coordinates.push({x: center.x - y, y: center.y + x});
-          coordinates.push({x: center.x + y, y: center.y - x});
-          coordinates.push({x: center.x - y, y: center.y - x});
-      
-          // Update the values of x and y based on the decision criterion
-          y++;
-          if (decisionOver2 <= 0) {
-            decisionOver2 += 2 * y + 1;
-          } else {
-            x--;
-            decisionOver2 += 2 * (y - x) + 1;
-          }
-        }
-      
-        // Return the array of coordinates
-        return coordinates;
-      },
     adjustTSJ: (filepath) => {
         let json = JSONread(filepath);
         json.tileheight = 32
@@ -143,11 +115,6 @@ const cte = { // helper functions
         var update_json = new TextFile(filepath, TextFile.WriteOnly);
         update_json.write(JSON.stringify(json, null, 2));
         update_json.commit();
-    },
-    updateMainConfig: function updateMainConfig() {
-        var updateConfigfile = new TextFile(pathToMainConfig, TextFile.WriteOnly);
-        updateConfigfile.write(JSON.stringify(mainConfig, null, `\t`));
-        updateConfigfile.commit();
     },
     replaceNewlines: function replaceNewlines(str) {
         // Use the regular expression to find objects with 4 or fewer entries
@@ -179,7 +146,7 @@ const cte = { // helper functions
         dialog.addNewRow()
         let cont = false;
         // if(dialog===undefined){dialog = new Dialog();}
-        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath);
+        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(FileInfo.path(tiled.projectFilePath)) : filepath = FileInfo.fromNativeSeparators(filepath);
         let newFilepath;
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
@@ -212,8 +179,7 @@ const cte = { // helper functions
         let dialog = new Dialog();
         title ? dialog.windowTitle = title : dialog.windowTitle;
         let cont = false;
-        // if(dialog===undefined){dialog = new Dialog();}
-        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath);
+        filepath === undefined ? filepath = FileInfo.fromNativeSeparators(FileInfo.path(tiled.projectFilePath)) : filepath = FileInfo.fromNativeSeparators(filepath);
         let newFilepath;
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
@@ -237,34 +203,6 @@ const cte = { // helper functions
         dialog.show();
         dialog.exec();
         return cont ? newFilepath : false;
-    },
-    filePicker_old: function filePicker_old(func, filepath) {
-        let dialog = new Dialog()
-        filepath == undefined ? filepath = FileInfo.fromNativeSeparators(mainConfig.pathToProject) : filepath = FileInfo.fromNativeSeparators(filepath)
-        let newFilepath;
-        let fileEdit = dialog.addFilePicker();
-        dialog.addNewRow();
-        fileEdit.fileUrl = filepath;
-        let acceptButton = dialog.addButton(`Accept`);
-        let cancelButton = dialog.addButton(`Cancel`);
-        acceptButton.clicked.connect(function () {
-            dialog.accept();
-        })
-        cancelButton.clicked.connect(function () {
-            dialog.reject();
-        })
-        dialog.accepted.connect(() => {
-            if (tiled.platform === "windows") {
-                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\/\//, "");
-            } else {
-                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\//, "");
-            }
-            // tiled.log(fileEdit.fileUrl.toString());
-            // tiled.log(newFilepath);
-            func(newFilepath)
-            return newFilepath
-        })
-        dialog.show()
     },
     getTileXY: function getTileXY(tile) {
         let tileset = tile.asset;
@@ -328,14 +266,14 @@ const cte = { // helper functions
     },
     load_config: () => {
         let loaded_config;
-        var pathToConfig = `${mainConfig.pathToProject}/${configfilename}`
+        var pathToConfig = `${FileInfo.path(tiled.projectFilePath)}/${configfilename}`
         if(File.exists(pathToConfig)){
             config = JSONread(pathToConfig)
         } else {
             config = {
                 chosen_tileset: `ChibiUltica`,
                 snaptogrid: true
-            } // new extensionConfig(mainConfig.pathToProject);
+            } // new extensionConfig(FileInfo.path(tiled.projectFilePath));
         }
         add_config_properties()
         // for(let key in loaded_config){
@@ -346,7 +284,7 @@ const cte = { // helper functions
         // tiled.log(config.path_to_cdda_palettes)
     },
     updateConfig: function updateConfig() {
-        var pathToConfig = `${mainConfig.pathToProject}/${configfilename}`
+        var pathToConfig = `${FileInfo.path(tiled.projectFilePath)}/${configfilename}`
         var configfile = new TextFile(pathToConfig, TextFile.WriteOnly);
         for(let key in config){
             if(key.match(/(?:\"get|\"set)/)){delete config[key]()}
@@ -402,62 +340,281 @@ const cte = { // helper functions
 }
 
 function initialize() {
-    if (!File.exists(pathToMainConfig)) {
-        action_cdda_verbose.checked = true
-        mainConfig = { "pathToProject": pathToUserFolder }
-        prepareMainConfig(mainConfig.pathToProject)
-        loadMainConfig()
+    action_cdda_verbose.checked = true
+
+    var pathToConfig = `${ FileInfo.path(tiled.projectFilePath)}/${configfilename}`
+
+    if (!File.exists(pathToConfig)) {
+        tiled.log(`no config file found at ${pathToConfig}. Making new config file.`)
+        config = new extensionConfig(FileInfo.path(tiled.projectFilePath));
+        config.path_to_cdda = !config.hasOwnProperty(`path_to_cdda`) ? getpathToCDDA() : config.path_to_cdda
+        if (!config.path_to_cdda) { return }
+        cte.updateConfig()
+        add_config_properties()
     } else {
-        loadMainConfig()
+        if (verbose >= 2) { tiled.log(`config file found at ${pathToConfig}`); }
+        cte.load_config()
+    }
+    if (!File.exists(config.path_to_tilesets)) { File.makePath(config.path_to_tilesets); }
+    if (!File.exists(config.path_to_maps)) { File.makePath(config.path_to_maps); }
+    return 1;
+}
+function isPathToCddaValid(path){
+    if (File.exists(`${path}/data/cataicon.ico`) && File.exists(`${path}/gfx/tile_config_template.json`)) {
         return true
-    }
-    function prepareMainConfig(filepath) {
-        var mainConfigfile = new TextFile(pathToMainConfig, TextFile.WriteOnly);
-
-        tiled.log(`generating main config file at '${pathToMainConfig}'`)
-        changeProjectPath()
-    }
-    function loadMainConfig() { // TODO fix main config to single function<<
-        if (!File.exists(pathToMainConfig)) {
-            mainConfig = { "pathToProject": pathToUserFolder }
-            var mainConfigfile = new TextFile(pathToMainConfig, TextFile.WriteOnly);
-            // prepareMainConfig(mainConfig.pathToProject)
-        }
-        mainConfig = JSONread(pathToMainConfig)
-        if (mainConfig.pathToProject.match(/\.json$/)) {
-            mainConfig.pathToProject = FileInfo.path(mainConfig.pathToProject)
-        }
-        var pathToConfig = `${mainConfig.pathToProject}/${configfilename}`
-        if (!File.exists(mainConfig.pathToProject)) { File.makePath(mainConfig.pathToProject); }
-
-        if (!File.exists(pathToConfig)) {
-            tiled.log(`no config file found at ${pathToConfig}. Making new config file.`)
-            config = new extensionConfig(mainConfig.pathToProject);
-            config.path_to_cdda = !config.hasOwnProperty(`path_to_cdda`) ? getpathToCDDA() : config.path_to_cdda
-            if (!config.path_to_cdda) { return }
-            cte.updateConfig()
-            add_config_properties()
-        } else {
-            if (verbose >= 2) { tiled.log(`config file found at ${pathToConfig}`); }
-            // config = JSONread(pathToConfig)
-            cte.load_config()
-        }
-        if (!File.exists(config.path_to_tilesets)) { File.makePath(config.path_to_tilesets); }
-        if (!File.exists(config.path_to_maps)) { File.makePath(config.path_to_maps); }
-        return 1;
+    } else {
+        return false
     }
 }
-function changeProjectPath() {
-    var pathToProject = cte.folderPicker(mainConfig.pathToProject, "Path to Tiled project")
-    if (!pathToProject) { return false; }
-    tiled.log(`Path to project set to '${pathToProject}'`)
-    if (pathToProject && pathToProject != mainConfig.pathToProject) {
-        mainConfig.pathToProject = pathToProject;
-        cte.updateMainConfig();
+function isTilesetInstalled(tileset){
+    if(File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets/${tileset}`)){
+        return true
+    } else {
+        return false
     }
+}
+function isTilesetActive(tileset){
+    if(config && config.chosen_tileset && config.chosen_tileset == tileset){
+        return true
+    } else {
+        return false
+    }
+}
+function removeFileStringFromFileUrl(path){
+    if (tiled.platform === "windows") {
+        return path.toString().replace(/^file\:\/\/\//, "");
+    } else {
+        return path.toString().replace(/^file\:\//, "");
+    }
+}
+function getInstalledTilesets(){
+    if(File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets`)){
+        return cte.getFoldersInPath(`${FileInfo.path(tiled.projectFilePath)}/tilesets`);
+    }
+}
+function getCurrentlyActiveTileset(){
+    if(config && config.chosen_tileset && File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets/${config.chosen_tileset}`)){
+        return config.chosen_tileset;
+    } else {
+        return false;
+    }
+}
+function wizard(){
+    let wizard = new Dialog();
+    wizard.windowTitle = `CDDA Tiled Extension Config`;
+    let pathToCdda;
+    let chosenTileset;
+    let isPathValid;
+    let installedTilesets = getInstalledTilesets()
+    let deleteConfirmCounter = 0;
+
+
+    let newPathToCDDA;
+    let cddaPathCheckmark;
+    let availableTilesetsList =[];
+    let rememberChosenTilesetIndex;
+    
+    
+    config.path_to_cdda ? pathToCdda = config.path_to_cdda : pathToCdda = FileInfo.path(tiled.projectFilePath)
+    config.chosen_tileset ? chosenTileset = config.chosen_tileset : chosenTileset;
+    
+    // let img = new Image();
+    // img.load("E:/tiledtest/tilesets/favorites/images/f_armchair.png")
+    // wizard.addImage("", img)
+
+
+    wizard.addSeparator(`Path to CDDA`);
+    let currentlySavedPathToCdda = wizard.addLabel(`Current path: ${config.path_to_cdda}`);
+    wizard.addNewRow();
+    wizard.addLabel("New path:", true);
+    let path_to_cdda_filepicker = wizard.addFilePicker();
+    cddaPathCheckmark = wizard.addLabel(``);
+    path_to_cdda_filepicker.fileUrl = pathToCdda;
+    updateCddaPathCheckmark(pathToCdda);
+    wizard.addSeparator(`Tilesets`);
+    let currentlyActiveTilesetText = wizard.addLabel(`Active tileset: ${getCurrentlyActiveTileset()}`);
+    wizard.addNewRow();
+    let tilesetSelector = wizard.addComboBox(``, availableTilesetsList);
+    let cddaPathTilesetWarning = wizard.addLabel(`-not in root CDDA directory-`);
+    wizard.addNewRow();
+    let deleteTilesetButton = wizard.addButton(`Delete`);
+    let installTilesetButton = wizard.addButton(`Install`);
+    let activateTilesetButton = wizard.addButton(`Activate`);
+    wizard.addSeparator();
+    let readinessMessage = wizard.addLabel(`Not ready to import maps`);
+    wizard.addNewRow();
+    wizard.addLabel(``);
+    wizard.addNewRow();
+    wizard.addSeparator();
+    let closeButton = wizard.addButton(`Close`);
+
+
+    deleteTilesetButton.clicked.connect(function () {
+        if(deleteConfirmCounter == 0){
+            deleteConfirmCounter++
+            deleteTilesetButton.text = `CONFIRM`
+            return
+        }
+        if(deleteConfirmCounter == 1){
+            deleteConfirmCounter = 0
+            rememberChosenTilesetIndex = tilesetSelector.currentIndex;
+            File.remove(`${FileInfo.path(tiled.projectFilePath)}/tilesets/${chosenTileset}`)
+            updateTilesetSelector(isPathValid)
+            updateTilesetList(isPathValid)
+            updateTilesetButtons()
+            deleteTilesetButton.text = `Deleted`;
+            tilesetSelector.currentIndex = rememberChosenTilesetIndex;
+            return
+        }
+
+    });
+    installTilesetButton.clicked.connect(function () {
+        installTilesetButton.text = `Installing...`;
+        rememberChosenTilesetIndex = tilesetSelector.currentIndex;
+        importTileset(`${newPathToCDDA}/gfx/${chosenTileset}`)
+        installTilesetButton.text = `Installing...`;
+        updateTilesetSelector(isPathValid)
+        updateTilesetButtons()
+        tilesetSelector.currentIndex = rememberChosenTilesetIndex;
+        wizard.show()
+    });
+    activateTilesetButton.clicked.connect(function () {
+        rememberChosenTilesetIndex = tilesetSelector.currentIndex;
+        if(!isTilesetInstalled(chosenTileset)){
+            importTileset(`${newPathToCDDA}/gfx/${chosenTileset}`)
+        }
+        config.chosen_tileset = chosenTileset;
+        cte.updateConfig();
+        updateTilesetSelector(isPathValid)
+        updateTilesetButtons()
+        tilesetSelector.currentIndex = rememberChosenTilesetIndex;
+        currentlyActiveTilesetText.text = `Active tileset: ${config.chosen_tileset}`;
+    });
+
+
+    
+    closeButton.clicked.connect(function () {
+        wizard.reject();
+    });
+
+
+
+    isPathToCddaValid(pathToCdda) ? isPathValid = true : isPathValid = false;
+    newPathToCDDA = pathToCdda;
+    updateCddaPathCheckmark(isPathValid)
+    updateTilesetSelector(isPathValid)
+    updateTilesetButtons()
+
+    function updateTilesetButtons(){
+        if(isTilesetInstalled(chosenTileset) ){
+            installTilesetButton.enabled = false;
+            installTilesetButton.toolTip = `Already installed`;
+            installTilesetButton.text = `Installed`;
+            deleteTilesetButton.enabled = true;
+            deleteTilesetButton.text = `Delete`;
+        } else {
+            installTilesetButton.enabled = true;
+            installTilesetButton.toolTip = ``;
+            installTilesetButton.text = `Install`;
+            deleteTilesetButton.enabled = false;
+            deleteTilesetButton.text = `Delete`;
+        }
+        if(isTilesetActive(chosenTileset)){
+            activateTilesetButton.enabled = false;
+            activateTilesetButton.toolTip = `Already active`;
+            activateTilesetButton.text = `Active`;
+        } else {
+            activateTilesetButton.enabled = true;
+            activateTilesetButton.toolTip = ``;
+            activateTilesetButton.text = `Activate`;
+        }
+        if(["favorites"].includes(chosenTileset)){
+            activateTilesetButton.enabled = false;
+            activateTilesetButton.toolTip = `This is a meta tileset and not a CDDA tileset that can be imported.`;
+            activateTilesetButton.text = `Wrong Type`;
+        }
+    }
+
+    function updateTilesetSelector(valid){
+        updateTilesetList(valid);
+        isReadyForMapImport()
+        if(valid || installedTilesets.lengeth > 0){
+            tilesetSelector.visible = true;
+            deleteTilesetButton.visible = true;
+            installTilesetButton.visible = true;
+            activateTilesetButton.visible = true;
+            cddaPathTilesetWarning.visible = false;
+        }
+        if(!valid && installedTilesets.length == 0){
+            tilesetSelector.clear();
+            tilesetSelector.visible = false;
+            deleteTilesetButton.visible = false;
+            installTilesetButton.visible = false;
+            activateTilesetButton.visible = false;
+            cddaPathTilesetWarning.visible = true;
+        }
+    }
+    //✅ ❌
+    function updateCddaPathCheckmark(valid){
+        if(valid){
+            cddaPathCheckmark.text = `✅`
+            cddaPathCheckmark.toolTip = `This is a valid path to CDDA`
+        } else {
+            cddaPathCheckmark.text = `❌`
+            cddaPathCheckmark.toolTip = `This is a not valid path to CDDA`
+        }
+    }
+
+    path_to_cdda_filepicker.fileUrlChanged.connect(() => {
+        deleteConfirmCounter = 0
+        path_to_cdda_filepicker.fileUrl = FileInfo.path(path_to_cdda_filepicker.fileUrl)
+        newPathToCDDA = removeFileStringFromFileUrl(path_to_cdda_filepicker.fileUrl)
+        isPathToCddaValid(newPathToCDDA) ? isPathValid = true : isPathValid = false;
+        if(isPathValid){
+            config.path_to_cdda = newPathToCDDA;
+            cte.updateConfig();
+            currentlySavedPathToCdda = `Current path: ${config.path_to_cdda}`;
+        };
+        updateCddaPathCheckmark(isPathValid)
+        updateTilesetSelector(isPathValid)
+    })
+    tilesetSelector.currentTextChanged.connect(() => {
+        deleteConfirmCounter = 0
+        chosenTileset = availableTilesetsList[tilesetSelector.currentIndex];
+        updateTilesetButtons()
+    })
+
+    function updateTilesetList(valid){
+        installedTilesets = getInstalledTilesets()
+        tilesetSelector.clear()
+        if(valid){
+            availableTilesetsList = cte.getFoldersInPath(`${newPathToCDDA}/gfx`);
+        } else {
+            availableTilesetsList = installedTilesets
+        }
+        let displayAvailableTilesetsList = availableTilesetsList.map((t) => {
+            if(t == `favorites`){ return `${t}  (not valid tileset)`}
+            if(installedTilesets.includes(t)){
+                if(getCurrentlyActiveTileset() == t){ return`-${t}-  (-active-)` }
+                return `${t}  (installed)`;
+             } else {
+                return `${t}`
+             }
+        })
+        tilesetSelector.addItems(displayAvailableTilesetsList)
+        chosenTileset ? tilesetSelector.currentIndex = availableTilesetsList.indexOf(chosenTileset) : tilesetSelector.currentIndex = availableTilesetsList.indexOf(config.chosen_tileset);
+    }
+    function isReadyForMapImport(){
+        if(isPathToCddaValid(pathToCdda) && config && config.chosen_tileset && isTilesetInstalled(config.chosen_tileset)){
+            readinessMessage.text = `Ready to import maps`;
+        } else {
+            readinessMessage.text = `Not ready to import maps`;
+        }
+    }
+    wizard.show()
 }
 function getpathToCDDA(){
-    return cte.folderPicker(config.hasOwnProperty(`path_to_cdda`) ? config.path_to_cdda : mainConfig.pathToProject, `Path to CDDA folder`)
+    return cte.folderPicker(config.hasOwnProperty(`path_to_cdda`) ? config.path_to_cdda : FileInfo.path(tiled.projectFilePath), `Path to CDDA folder`)
 }
 function addSpriteToFavotires() {
     let originalAsset = tiled.activeAsset
@@ -487,16 +644,6 @@ function addSpriteToFavotires() {
         cte.adjustTSJ(config.path_to_favorites_tileset)
     }
     favorites = tiled.open(config.path_to_favorites_tileset);
-    // if(favorites === undefined){
-    //     favorites = tiled.open(config.path_to_favorites_tileset);
-    // }
-    // for(let asset of tiled.openAssets){
-    //     if(asset.fileName == config.path_to_favorites_tileset){
-    //         favorites = asset
-    //         break
-    //     }
-    // }
-
     for (let tile of tiles) {
         let path_to_image;
         if (!is_image_collection) {
@@ -631,22 +778,24 @@ function getRecursiveFilePathsInFolder(targetPath) {
 }
 
 
-function importTilesets() {
+function importTileset(pathToChosenTileset) {
 
-    config.set_path_to_cdda = !config.hasOwnProperty(`path_to_cdda`) ? getpathToCDDA() : config.path_to_cdda
-    if (!config.path_to_cdda) { return tiled.log("Action cancelled.") }
-    cte.updateConfig();
-    tiled.log(config.path_to_cdda_tilesets)
-    let dialogoutput = chooseTilesetDialog(config.path_to_cdda_tilesets)
-    if (!dialogoutput) { return tiled.log("Action cancelled.") }
-    config.path_to_chosen_cdda_tileset_files = dialogoutput
+    // config.set_path_to_cdda = !config.hasOwnProperty(`path_to_cdda`) ? getpathToCDDA() : config.path_to_cdda
+    // if (!config.path_to_cdda) { return tiled.log("Action cancelled.") }
+    // cte.updateConfig();
+    // tiled.log(config.path_to_cdda_tilesets)
+    // let dialogoutput = chooseTilesetDialog(config.path_to_cdda_tilesets)
+    // if (!dialogoutput) { return tiled.log("Action cancelled.") }
+    // config.path_to_chosen_cdda_tileset_files = dialogoutput
+
+    config.path_to_chosen_cdda_tileset_files = pathToChosenTileset
 
     if (config.path_to_chosen_cdda_tileset_files.match(/\.json$/)) { config.path_to_chosen_cdda_tileset_files = FileInfo.path(config.path_to_chosen_cdda_tileset_files) }
 
     if (!File.exists(config.path_to_chosen_tileset_files)) { tiled.log(`Making path to chosen tileset '${config.path_to_chosen_tileset_files}'`);File.makePath(config.path_to_chosen_tileset_files); }
     if (!File.exists(config.path_to_meta_tileset)) { tiled.log("Generating meta tileset."); generateMetaTileset(); }
 
-    cte.updateConfig();
+    // cte.updateConfig();
     let pathToDuplicateIDImages = `${config.path_to_chosen_tileset_files}/duplicate_id_images`
     if (!File.exists(pathToDuplicateIDImages)) { File.makePath(pathToDuplicateIDImages); }
     let pathToDuplicateIDTSJ = `${config.path_to_chosen_tileset_files}/duplicate_id_tiles.tsj`
@@ -1253,6 +1402,7 @@ function importMap(filepath, j) {
         // check if has fill_ter, TODO remove later
         if (import_map.object.hasOwnProperty("fill_ter")) { if (verbose >= 1) { tiled.log(`Has fill_ter: ${import_map.object.fill_ter}`); }; }
 
+        // find map size
         if (import_map.object.hasOwnProperty("mapgensize")) {
             for (let y; y < import_map.object.mapgensize[1]; y++) {
                 mapArray.push(" ".repeat(import_map.object.mapgensize[0]))
@@ -1438,16 +1588,15 @@ function importMap(filepath, j) {
 
 
         // get tiles
-        let tileset_cache = {};
         for (let cdda_id in all_tileDict) {
             if (all_tileDict[cdda_id].filepath === undefined) { continue; }
             let tileset;
             if (all_tileDict[cdda_id].hasOwnProperty("tile")) { continue; }
-            if (!tileset_cache.hasOwnProperty(all_tileDict[cdda_id].filepath)) {
-                tileset_cache[all_tileDict[cdda_id].filepath] = tiled.open(all_tileDict[cdda_id].filepath)
+            if (!cache.hasOwnProperty(all_tileDict[cdda_id].filepath)) {
+                cache[all_tileDict[cdda_id].filepath] = tiled.open(all_tileDict[cdda_id].filepath)
                 if (verbose >= 1) { tiled.log(`adding '${all_tileDict[cdda_id].filepath}' to tileset cache`) }
             }
-            tileset = tileset_cache[all_tileDict[cdda_id].filepath]
+            tileset = cache[all_tileDict[cdda_id].filepath]
             all_tileDict[cdda_id].tile = tileset.findTile(all_tileDict[cdda_id].id)
             if (verbose >= 1) { tiled.log(`cdda id '${cdda_id}' has tile '${all_tileDict[cdda_id].tile}'`) }
         }
@@ -1594,7 +1743,7 @@ function importMap(filepath, j) {
                     tl.setProperty("cdda_id", import_map.object.fill_ter)
                     for (let entry in mapArrays["fill_ter"]) {
                         if (verbose >= 1) { tiled.log(`( ${mapArrays["fill_ter"][entry][0]}, ${mapArrays["fill_ter"][entry][1]} ) - ${mapArrays["fill_ter"][entry][2]}`) }
-                        tle.setTile(mapArrays["fill_ter"][entry][0], mapArrays["fill_ter"][entry][1], mapArrays["fill_ter"][entry][2])
+                        tle.setTile(parseInt(mapArrays["fill_ter"][entry][0],10), parseInt(mapArrays["fill_ter"][entry][1],10), mapArrays["fill_ter"][entry][2])
                     }
                     tle.apply();
                     return tl;
@@ -1603,7 +1752,7 @@ function importMap(filepath, j) {
                 if (mapLayerTypes.includes(layername)) {
                     for (let entry in mapArrays[layername]) {
                         if (verbose >= 1) { tiled.log(`adding to layer: '${entry}' - ( ${mapArrays[layername][entry][0]}, ${mapArrays[layername][entry][1]} ) - ${mapArrays[layername][entry][2]}`) }
-                        tle.setTile(mapArrays[layername][entry][0], mapArrays[layername][entry][1], mapArrays[layername][entry][2])
+                        tle.setTile(parseInt(mapArrays[layername][entry][0],10), parseInt(mapArrays[layername][entry][1],10), mapArrays[layername][entry][2])
                     }
                 }
                 tle.apply();
@@ -1755,60 +1904,6 @@ function importMap(filepath, j) {
     // (outputFileResults == null) ? tiled.log(FileInfo.baseName(pathToMap) + " file created successfully.") : tiled.log(FileInfo.baseName(pathToMap) + " - FAILED to create file. Error: " + outputFileResults)
     // tiled.open(path_to_maps);
 }
-function make_guide_from_shape(){
-    let center = {}
-    let map = tiled.activeAsset
-    if(!tiled.activeAsset.hasOwnProperty("selectedObjects")){
-        return tiled.log(`No selection detected. Try again, sometimes this happens.`)
-    }
-    if(tiled.activeAsset.selectedObjects.length < 1){
-        return tiled.log(`No selection detected. Try again, sometimes this happens.`)
-    }
-    let obj = tiled.activeAsset.selectedObjects[0]
-    if(!obj){return tiled.log(`no object selected (select a circle)`);}
-
-    if (!cache.hasOwnProperty("diagonal_stripes")) {
-        if (!cache.hasOwnProperty(config.path_to_meta_tileset)) { cache[config.path_to_meta_tileset] = JSONread(config.path_to_meta_tileset) }
-        let tsjTiles = cache[config.path_to_meta_tileset]
-        tileloop:
-        for (let tile_i in tsjTiles.tiles) {
-            let _this_tile = tsjTiles.tiles[tile_i]
-            for (let property in _this_tile.properties) {
-                let _this_property = _this_tile.properties[property]
-                if (_this_property.value == "diagonal_stripes") {
-                    if (!cache.hasOwnProperty("meta_tileset")) { cache.meta_tileset = tiled.open(config.path_to_meta_tileset);tiled.activeAsset = map }
-                    cache.diagonal_stripes = cache.meta_tileset.findTile(_this_tile.id)
-                    break tileloop
-                }
-            }
-        }
-    }
-    if(cache.diagonal_stripes === undefined){return tiled.log(`tile for diagonal_stripes not found`)}
-    // tiled.log(`(${obj.x},${obj.y}) r: ${obj.width/64}`)
-    center.x = Math.floor((obj.x+(obj.width/2))/32)
-    center.y = Math.floor((obj.y+(obj.height/2))/32)
-    let coordinates = cte.getCircleCoordinates(center,Math.floor(obj.width/64))
-    let layername = `${obj.name}_projected_tiles`
-    let layer;
-    for(let layer in map.layers){
-        if(map.layers[layer].name === layername){
-            map.removeLayer(map.layers[layer])
-            break
-        }
-    }
-    layer = new TileLayer(layername)
-    // layer.setProperty(`source_geometry`,obj)
-    layer.opacity = 0.5
-    let le = layer.edit();
-
-    for(let coord in coordinates){
-        if(verbose >= 1){tiled.log(`output coord (${coordinates[coord].x}, ${coordinates[coord].y})`)}
-        le.setTile(coordinates[coord].x,coordinates[coord].y,cache.diagonal_stripes)
-    }
-    le.apply()
-    // obj.setProperty(`projected_tiles`,layer)
-    map.addLayer(layer)
-}
 function addNewOmTerrainToMap() {
     return tiled.activeAsset.isTileMap ? tiled.activeAsset.addLayer(makeNewOmTerrain([tiled.activeAsset.width, tiled.activeAsset.height])) : tiled.log(`No tilemap found to add layer.`)
 }
@@ -1931,9 +2026,8 @@ function exportMap(map) {
         let coordinate_assignments = {}; // (x,y): [cdda_ids]
 
         // get all cdda ids associated with each symbol in palette, by symbol
-        let palette_objects_with_symbols = ["terrain", "furniture"]
         for (let palette of loaded_palettes) { // get symbols from palette by layer (terrain, furniture, items, etc.) to avoid using for custom assignment
-            for (let object of palette_objects_with_symbols) {
+            for (let object of mapLayerTypes) {
                 if (!palette.hasOwnProperty(object)) { continue; }
                 for (let symbol of Object.keys(palette[object])) {
 
@@ -2073,7 +2167,7 @@ function exportMap(map) {
                     layer_map_array[y] = layer_map_array[y].slice(0, x) + possible_symbol + layer_map_array[y].slice(x + 1)
 
 
-                    for (let entry of palette_objects_with_symbols) {
+                    for (let entry of mapLayerTypes) {
                         if (coordinate_assignments[coordinate].hasOwnProperty(entry)) {
                             coordinate_assignments[coordinate][entry]
                         }
@@ -2089,7 +2183,7 @@ function exportMap(map) {
             // custom symbols
 
             // previously defined symbol
-            for (let object of palette_objects_with_symbols) {
+            for (let object of mapLayerTypes) {
             }
             for (let symbol of Object.keys(custom_symbols_dict)) {
                 if (
@@ -2105,9 +2199,9 @@ function exportMap(map) {
             // newly defined symbol
             let symbolstouse = ""
             let cdda_ids_in_tile = cte.flattenDict(coordinate_assignments[coordinate])
-            let symbol_group_to_use = `pretty`
-            if (!use_pretty_symbols) {
-                symbol_group_to_use = `us_keyboard`
+            let symbol_group_to_use = `us_keyboard`
+            if (use_pretty_symbols) {
+                symbol_group_to_use = `pretty`
             }
             for (let searchTerm in utf_ramps[symbol_group_to_use]) {
                 let re = new RegExp(`(${searchTerm})`)
@@ -2126,8 +2220,11 @@ function exportMap(map) {
                     if (Array.isArray(entry_ready) && entry_ready.length === 1) {
                         entry_ready = entry_ready[0]
                     }
-                    if (entry == "terrain") { mapEntry.object.terrain[symbol] = entry_ready; }
-                    if (entry == "furniture") { mapEntry.object.furniture[symbol] = entry_ready; }
+                    for (let mapLayerType of mapLayerTypes){
+                        if (entry == mapLayerType) { mapEntry.object[mapLayerType][symbol] = entry_ready; }
+                    }
+                    // if (entry == "terrain") { mapEntry.object.terrain[symbol] = entry_ready; }
+                    // if (entry == "furniture") { mapEntry.object.furniture[symbol] = entry_ready; }
                 }
                 continue coordinate_entry_loop;
             }
@@ -2356,7 +2453,7 @@ const setconfig = new Proxy(config, {
 })
 function add_config_properties(){ 
     Object.defineProperty(config,"path_to_project",{
-        get: function() { return mainConfig.pathToProject; },
+        get: function() { return FileInfo.path(tiled.projectFilePath); },
     });
     // Object.defineProperty(config,"set_path_to_project",{
     //     set: function(value) { this.path_to_project = FileInfo.fromNativeSeparators(value) }
@@ -2390,7 +2487,7 @@ function add_config_properties(){
         get: function() { return `${this.path_to_chosen_cdda_tileset_files}/tile_config.json`; }
     });
     Object.defineProperty(config,"path_to_tilesets",{
-        get: function() { return `${mainConfig.pathToProject}/tilesets`; }
+        get: function() { return `${FileInfo.path(tiled.projectFilePath)}/tilesets`; }
     });
     Object.defineProperty(config,"path_to_chosen_tileset_files",{
         get: function() { return `${this.path_to_tilesets}/${this.chosen_tileset}`; }
@@ -2405,19 +2502,18 @@ function add_config_properties(){
         get: function() { return `${this.path_to_tilesets}/favorites/favorites.tsj`; }
     });
     Object.defineProperty(config,"path_to_maps",{
-        get: function() { return `${mainConfig.pathToProject}/maps`; }
+        get: function() { return `${FileInfo.path(tiled.projectFilePath)}/maps`; }
     });
     function getconfig(k){return config[k]}
 }
 class extensionConfig {
-    constructor(pathToProject) {
+    constructor() {
         this.chosen_tileset = "ChibiUltica";
         this.snaptogrid = true;
         // this.path_to_cdda;
         // this.path_to_chosen_cdda_tileset_files;
         // this.path_to_cdda_tilesets;
         // this.pathToExtras = pathToExtras;
-        // this.pathToProject = pathToProject;
         // this.filename = configfilename;
         // this.path_to_cdda;
         // return new Proxy(this, {
@@ -2466,12 +2562,13 @@ var CDDAMapFormat = {
 // tiled.log(tiled.actions)
 // tiled.trigger(tiled.actions)
 
-//import CDDA Tileset
-const action_importTileset = tiled.registerAction("CustomAction_importTileset", function (action_importTileset) {
-    tiled.log(`${action_importTileset.text} was run.`)
+
+// Create New Map
+const action_configureCTE = tiled.registerAction("CustomAction_configureCTE", function (action_configureCTE) {
     initialize()
-    importTilesets()
+    wizard()
 });
+
 // Create New Map
 const action_createNewMap = tiled.registerAction("CustomAction_createNewMap", function (action_createNewMap) {
     tiled.log(`${action_createNewMap.text} was run.`)
@@ -2482,11 +2579,6 @@ const action_createNewMap = tiled.registerAction("CustomAction_createNewMap", fu
 const action_newCDDAGroupLayer = tiled.registerAction("CustomAction_newCDDAGroupLayer", function (action_newCDDAGroupLayer) {
     tiled.log(`${action_newCDDAGroupLayer.text} was run.`)
     initialize() ? addNewOmTerrainToMap() : tiled.log(`Failed to initialize.`)
-});
-// Make guide from shape
-const action_make_guide_from_shape = tiled.registerAction("CustomAction_make_guide_from_shape", function (action_newCDDAGroupLayer) {
-    tiled.log(`${action_make_guide_from_shape.text} was run.`)
-    initialize() ? make_guide_from_shape() : tiled.log(`Failed to initialize.`)
 });
 // Import CDDA Map
 const action_importMap = tiled.registerAction("CustomAction_importMap", function (action_importMap) {
@@ -2513,17 +2605,6 @@ const action_add_sprite_to_favotires = tiled.registerAction("CustomAction_CDDA_a
     tiled.log(`${action_add_sprite_to_favotires.text} was run.`)
     initialize() ? addSpriteToFavotires() : tiled.log("Action aborted.")
 });
-// change path to project
-const action_changeProjectPath = tiled.registerAction("CustomAction_changeProjectPath", function (action_changeProjectPath) {
-    tiled.log(`${action_changeProjectPath.text} was run.`)
-    changeProjectPath()
-});
-// change path to cdda
-const action_changeCDDAPath = tiled.registerAction("CustomAction_changeCDDAPath", function (action_changeProjectPath) {
-    tiled.log(`${action_changeCDDAPath.text} was run.`)
-    config.path_to_cdda = getpathToCDDA()
-    cte.updateConfig()
-});
 // toggle verbose mode
 const action_cdda_verbose = tiled.registerAction("CustomAction_cdda_verbose", function (action_cdda_verbose) {
     tiled.log(action_cdda_verbose.text + " was " + (action_cdda_verbose.checked ? "checked" : "unchecked"))
@@ -2538,45 +2619,21 @@ const action_cdda_unicode_set_toggle = tiled.registerAction("CustomAction_cdda_u
 const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", function (action_cdda_debug) {
     tiled.log(`${action_cdda_debug.text} was run.`)
     initialize()
-    let test = chooseTilesetDialog(config.path_to_cdda_tilesets)
-    test ? tiled.log(test) : tiled.log("cancelled")
-    // tiled.log(tiled.actions)
-    // tiled.trigger("CustomAction_CDDA_add_sprite_to_favotires")
-    // initialize()
-    // let filepath = config.path_to_maps
-    // let dialog = new Dialog()
-    // let filepath = cte.folderPicker(pathToUserFolder)
-    
 
+    wizard()
     
-    // for(let coord in coordinates){
-    //     tiled.log(`output coord (${coordinates[coord].x}, ${coordinates[coord].y})`)
-    // }
-    // for(let key in config){
-    //     tiled.log(`config.${key} = ${config[key]}`)
-    // }
-    // tiled.log(config.path_to_cdda)
-    // let output = config.path_to_chosen_tileset_files
-    // tiled.log(`output: '${output}'`)
-    // filepath = filePicker(filepath)
-    // cte.filePicker(filepath);
-    // findTileInTilesets(cdda_id_tofind)
     tiled.log(`debug finished`)
 });
 
-action_importTileset.text = "Import CDDA tileset"
+action_configureCTE.text = "Configure CTE"
 action_createNewMap.text = "Create new CDDA map"
 action_newCDDAGroupLayer.text = "Add new om_terrain to map"
-action_make_guide_from_shape.text = "Make Guide from shape"
-action_make_guide_from_shape.shortcut = "CTRL+SHIFT+G"
 action_importMap.text = "Import CDDA map"
 action_exportMap.text = "Export to CDDA map"
 action_findTileInTilemap.text = "Find CDDA Tile"
 action_findTileInTilemap.shortcut = "CTRL+F"
 action_add_sprite_to_favotires.text = "Add Sprite to Favorites"
 action_add_sprite_to_favotires.shortcut = "CTRL+SHIFT+F"
-action_changeProjectPath.text = "Change project path"
-action_changeCDDAPath.text = "Change path to CDDA"
 action_cdda_verbose.text = "Verbose Logging (slower performance)"
 action_cdda_verbose.checkable = true
 action_cdda_unicode_set_toggle.text = "Pretty symbols for map export"
@@ -2590,17 +2647,13 @@ action_cdda_debug.shortcut = "CTRL+D"
 tiled.registerMapFormat("cdda map", CDDAMapFormat)
 tiled.extendMenu("File", [
     { separator: true },
-    { action: "CustomAction_importTileset", before: "Close" },
     { action: "CustomAction_importMap", before: "Close" },
     { action: "CustomAction_createNewMap", before: "Close" },
-    { action: "CustomAction_changeProjectPath", before: "Close" },
-    { action: "CustomAction_changeCDDAPath", before: "Close" },
     { separator: true }
 ]);
 tiled.extendMenu("Map", [
     { separator: true },
     { action: "CustomAction_newCDDAGroupLayer", after: "Terrain Sets" },
-    { action: "CustomAction_make_guide_from_shape", after: "Terrain Sets" },
     { action: "CustomAction_cdda_unicode_set_toggle", after: "Terrain Sets" },
     { separator: true }
 ]);
@@ -2608,6 +2661,7 @@ tiled.extendMenu("Edit", [
     { separator: true },
     { action: "CustomAction_CDDA_map_findTileInTileset", before: "Cut" },
     { action: "CustomAction_CDDA_add_sprite_to_favotires", before: "Cut" },
+    { action: "CustomAction_configureCTE", before: "Preferences" },
     { separator: true }
 ]);
 tiled.extendMenu("Help", [
