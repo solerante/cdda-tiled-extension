@@ -95,6 +95,12 @@ const utf_ramps = {
 }
 const no_id_objects = ["rows", "palettes", "fill_ter", "//", "id", "type"]
 
+// let checkmarkImage = new Image();
+// checkmarkImage.loadFromData(Base64.decode("PHN2ZyB3aWR0aD0iMTkuMjEzMTUiIGhlaWdodD0iMTguMjk0OTk0IiB2ZXJzaW9uPSIxLjAiPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOTIuOTA1LC01MTYuMDIwNjQpIj48cGF0aCBzdHlsZT0iZmlsbDojMDBmZjAwIiBkPSJNIDE5Ny42Nzk2OCw1MzQuMzE1NjMgQyAxOTcuNDA0NjgsNTM0LjMxMjA4IDE5Ni4yMTc4OCw1MzIuNTM3MTkgMTk1LjA0MjM0LDUzMC4zNzE0MyBMIDE5Mi45MDUsNTI2LjQzMzY4IEwgMTkzLjQ1OTAxLDUyNS44Nzk2OCBDIDE5My43NjM3MSw1MjUuNTc0OTcgMTk0LjU4MjY5LDUyNS4zMjU2NyAxOTUuMjc4OTYsNTI1LjMyNTY3IEwgMTk2LjU0NDksNTI1LjMyNTY3IEwgMTk3LjE4MTI5LDUyNy4zMzA3NiBMIDE5Ny44MTc2OCw1MjkuMzM1ODQgTCAyMDIuODgyMTUsNTIzLjc5NDUxIEMgMjA1LjY2NzYxLDUyMC43NDY3OCAyMDguODg1MjIsNTE3Ljc1MDg1IDIxMC4wMzIzOSw1MTcuMTM2OTEgTCAyMTIuMTE4MTUsNTE2LjAyMDY0IEwgMjA3LjkwODcxLDUyMC44MDI4MiBDIDIwNS41OTM1MSw1MjMuNDMzMDIgMjAyLjQ1NzM1LDUyNy41NTA4NSAyMDAuOTM5NDcsNTI5Ljk1MzU1IEMgMTk5LjQyMTU5LDUzMi4zNTYyNSAxOTcuOTU0NjgsNTM0LjMxOTE5IDE5Ny42Nzk2OCw1MzQuMzE1NjMgeiIvPjwvZz48L3N2Zz4="), "svg");
+// let checkMark = dialog.addImage('', checkmarkImage);
+
+
+
 var skipOverwrite = true;
 var overwriteExisting = true;
 var config = {};
@@ -412,6 +418,10 @@ function wizard(){
     config.path_to_cdda ? pathToCdda = config.path_to_cdda : pathToCdda = FileInfo.path(tiled.projectFilePath)
     config.chosen_tileset ? chosenTileset = config.chosen_tileset : chosenTileset;
     
+    // let img = new Image();
+    // img.load("E:/tiledtest/tilesets/favorites/images/f_armchair.png")
+    // wizard.addImage("", img)
+
 
     wizard.addSeparator(`Path to CDDA`);
     let currentlySavedPathToCdda = wizard.addLabel(`Current path: ${config.path_to_cdda}`);
@@ -544,12 +554,13 @@ function wizard(){
             cddaPathTilesetWarning.visible = true;
         }
     }
+    //✅ ❌
     function updateCddaPathCheckmark(valid){
         if(valid){
-            cddaPathCheckmark.text = `✓`
+            cddaPathCheckmark.text = `✅`
             cddaPathCheckmark.toolTip = `This is a valid path to CDDA`
         } else {
-            cddaPathCheckmark.text = `✗`
+            cddaPathCheckmark.text = `❌`
             cddaPathCheckmark.toolTip = `This is a not valid path to CDDA`
         }
     }
@@ -569,7 +580,6 @@ function wizard(){
     })
     tilesetSelector.currentTextChanged.connect(() => {
         deleteConfirmCounter = 0
-        tiled.log(availableTilesetsList[tilesetSelector.currentIndex]);
         chosenTileset = availableTilesetsList[tilesetSelector.currentIndex];
         updateTilesetButtons()
     })
@@ -592,10 +602,6 @@ function wizard(){
              }
         })
         tilesetSelector.addItems(displayAvailableTilesetsList)
-        if(chosenTileset){
-            tiled.log(`chosen tileset exists: ${chosenTileset}`)
-            tiled.log(`index: ${availableTilesetsList.indexOf(chosenTileset)}`)
-        }
         chosenTileset ? tilesetSelector.currentIndex = availableTilesetsList.indexOf(chosenTileset) : tilesetSelector.currentIndex = availableTilesetsList.indexOf(config.chosen_tileset);
     }
     function isReadyForMapImport(){
@@ -605,58 +611,7 @@ function wizard(){
             readinessMessage.text = `Not ready to import maps`;
         }
     }
-
     wizard.show()
-
-    // let cancelButton = dialog.addButton(`Cancel`);
-    // let acceptButton = dialog.addButton(`Select`);
-    // acceptButton.clicked.connect(function () {
-    //     response = `${filepath}/${folder_list[selection.currentIndex]}`
-    //     dialog.accept();
-    // })
-    // cancelButton.clicked.connect(function () {
-    //     dialog.reject();
-    // })
-    // dialog.accepted.connect(() => {
-    // })
-    // dialog.show()
-    // dialog.exec()
-    // return response
-
-
-
-    // dialog.addLabel(`Select any file within the desired folder.`)
-    // dialog.addNewRow()
-    // cont = false;
-    // // if(dialog===undefined){dialog = new Dialog();}
-    // filepath === undefined ? filepath = FileInfo.fromNativeSeparators(FileInfo.path(tiled.projectFilePath)) : filepath = FileInfo.fromNativeSeparators(filepath);
-    // newFilepath;
-    //  fileEdit = dialog.addFilePicker();
-    // dialog.addNewRow();
-    // fileEdit.fileUrl = filepath;
-    // acceptButton = dialog.addButton(`Accept`);
-    // cancelButton = dialog.addButton(`Cancel`);
-    // fileEdit.fileUrlChanged.connect(() => {
-    //     fileEdit.fileUrl = FileInfo.path(fileEdit.fileUrl)
-    // })
-    // acceptButton.clicked.connect(function () {
-    //     dialog.accept();
-    // });
-    // cancelButton.clicked.connect(function () {
-    //     dialog.reject();
-    // });
-    // dialog.accepted.connect(() => {
-    //     if (tiled.platform === "windows") {
-    //         newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\/\//, "");
-    //     } else {
-    //         newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\//, "");
-    //     }
-    //     cont = true;
-    // });
-    // if(verbose){tiled.log(newFilepath)}
-    // dialog.show();
-    // dialog.exec();
-    // return cont ? newFilepath : false;
 }
 function getpathToCDDA(){
     return cte.folderPicker(config.hasOwnProperty(`path_to_cdda`) ? config.path_to_cdda : FileInfo.path(tiled.projectFilePath), `Path to CDDA folder`)
@@ -2607,6 +2562,13 @@ var CDDAMapFormat = {
 // tiled.log(tiled.actions)
 // tiled.trigger(tiled.actions)
 
+
+// Create New Map
+const action_configureCTE = tiled.registerAction("CustomAction_configureCTE", function (action_configureCTE) {
+    initialize()
+    wizard()
+});
+
 // Create New Map
 const action_createNewMap = tiled.registerAction("CustomAction_createNewMap", function (action_createNewMap) {
     tiled.log(`${action_createNewMap.text} was run.`)
@@ -2663,6 +2625,7 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     tiled.log(`debug finished`)
 });
 
+action_configureCTE.text = "Configure CTE"
 action_createNewMap.text = "Create new CDDA map"
 action_newCDDAGroupLayer.text = "Add new om_terrain to map"
 action_importMap.text = "Import CDDA map"
@@ -2698,6 +2661,7 @@ tiled.extendMenu("Edit", [
     { separator: true },
     { action: "CustomAction_CDDA_map_findTileInTileset", before: "Cut" },
     { action: "CustomAction_CDDA_add_sprite_to_favotires", before: "Cut" },
+    { action: "CustomAction_configureCTE", before: "Preferences" },
     { separator: true }
 ]);
 tiled.extendMenu("Help", [
