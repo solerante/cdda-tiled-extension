@@ -12,7 +12,7 @@ var use_pretty_symbols = false
 const pathToExtras = `${tiled.extensionsPath}/cdda_map_extension_extras`
 const configfilename = "cdda_tiled_extension_config.json";
 
-const mapLayerTypes = ["terrain", "furniture", "traps", "vehicles", "items"]
+const mapLayerTypes = ["terrain", "furniture", "traps", "vehicles"] // , "items"
 const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields", "place_zones"]
 const flags = ["ERASE_ALL_BEFORE_PLACING_TERRAIN", "ALLOW_TERRAIN_UNDER_OTHER_DATA", "NO_UNDERLYING_ROTATE", "AVOID_CREATURES"]
 const utf_ramps = {
