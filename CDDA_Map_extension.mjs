@@ -719,71 +719,44 @@ function addSpriteToFavotires() {
  * @param {"string"} cdda_id 
  * @returns {"Tile"} - new unknown tile
  */
-function add_cdda_id_to_unknowns(cdda_id) {
+function addCddaIdToUnknowns(cdda_id) {
     if (cdda_id == `t_null`) { return }
-    // tiled.log(`Working on Unkown Tiles`)
 
-    if (!config.hasOwnProperty(`path_to_unknowns_tileset`)) {
-        config.path_to_unknowns_tileset = `${config.path_to_chosen_tileset_files}/unknown_tiles.tsj`
-        cte.updateConfig()
-    }
-    if (!cache.hasOwnProperty(config.path_to_meta_tileset)) { cache[config.path_to_meta_tileset] = JSONread(config.path_to_meta_tileset) }
-    let tsjTiles = cache[config.path_to_meta_tileset]
-    function get_path_to_tile_image(cdda_id){
-        for (let tile_i in tsjTiles.tiles) {
-            let _this_tile = tsjTiles.tiles[tile_i]
-            for (let property in _this_tile.properties) {
-                let _this_property = _this_tile.properties[property]
-                if (_this_property.value == cdda_id) {
-                    let path;
-                    if (FileInfo.isAbsolutePath(_this_tile.image)) {
-                        path = _this_tile.image
-                    } else {
-                        path = `${FileInfo.path(config.path_to_meta_tileset)}/${_this_tile.image}`
-                    }
-                    cache.unknown_tile_image_path = path
-                    tiled.log(`path to unknown tile image ${cache.unknown_tile_image_path}`)
-                    return
-                }
-            }
-        }
-    }
-    if (!cache.hasOwnProperty("unknown_tile_image_path")) {
-        get_path_to_tile_image("unknown_tile")
-    } else if (cache.unknown_tile_image_path === undefined){
-        get_path_to_tile_image("unknown_tile")
-    }
-    if(cache.unknown_tile_image_path == undefined){ return }
-    // return unknown tile if already made
-    if (File.exists(config.path_to_unknowns_tileset)) {
-        let unknown_tsj_tiles = JSONread(config.path_to_unknowns_tileset)
-        for (let tile_i in unknown_tsj_tiles.tiles) {
-            let _this_tile = unknown_tsj_tiles.tiles[tile_i]
-            for (let property in _this_tile.properties) {
-                let _this_property = _this_tile.properties[property]
-                if (_this_property.value == cdda_id) {
-                    return tiled.open(config.path_to_unknowns_tileset).findTile(unknown_tsj_tiles.tiles[tile_i].id);
-                }
-            }
-        }
-    }
     // make unknowns tileset if it doesn't exist
     let unknowns;
     if (!File.exists(config.path_to_unknowns_tileset)) {
         unknowns = new Tileset("unknowntiles");
-        tiled.tilesetFormat("json").write(unknowns, config.path_to_unknowns_tileset);
-        cte.adjustTSJ(config.path_to_unknowns_tileset)
+        tiled.tilesetFormat("tsx").write(unknowns, config.path_to_unknowns_tileset);
     }
-    unknowns = tiled.open(config.path_to_unknowns_tileset);
+    let unknownsAssetCheck = getOpenAssetByFilepath(config.path_to_unknowns_tileset)
+    if (unknownsAssetCheck != null && unknownsAssetCheck.isTileset) {
+        unknowns = unknownsAssetCheck;
+    } else {
+        unknowns = tiled.open(config.path_to_unknowns_tileset);
+    }
+
+    // return unknown tile if already made
+    for (let tile_i in unknowns.tiles) {
+        let tile = unknowns.tiles[tile_i]
+        let tileProperties = tile.resolvedProperties()
+        for (let p in tileProperties) {
+            let property = tileProperties[p]
+            if (p == 'cdda_id' && property == cdda_id) {
+                return tile
+            }
+        }
+    }
 
     // add tile and properties with unknown image filepath
     let newUnknownTile = unknowns.addTile()
+    let img = new Image()
+    img.loadFromData(Base64.decode(b64images.metatiles['unknown_tile'], "png"));
+    newUnknownTile.setImage(img);
     newUnknownTile.setProperty("cdda_id", cdda_id)
-    newUnknownTile.imageFileName = cache.unknown_tile_image_path
+    
     if (verbose >= 1) { tiled.log(`'${newUnknownTile.property(`cdda_id`)}' added to unknowns.`) }
 
     tiled.tilesetFormat("json").write(unknowns, config.path_to_unknowns_tileset);
-    // tiled.close(unknowns)
     return newUnknownTile
 }
 
@@ -1167,7 +1140,7 @@ function new_importMapsDialog(){
  * @param {"string"} filename 
  * @returns asset | null
  */
-function getOpenAssetByFilename(filename){
+function getOpenAssetByFilepath(filename){
     for (let i = 0; i < tiled.openAssets.length; i++) {
         if (tiled.openAssets[i].fileName == filename) {
             return tiled.openAssets[i];
@@ -1180,25 +1153,24 @@ function getOpenAssetByFilename(filename){
 /**
  * 
  * @param {"string"} cddaId 
- * @returns tile, id, filepath
+ * @returns tile
  */
 function new_getTileForCddaId(cddaId){
-    
+    tiled.log(`#####looking for tile for cdda id: ${cddaId}#####`)
     // TODO guarantee special tilesets are generated?
     // get tile locations known for cdda ids in map
     let tilesetFilepaths = getRecursiveFilePathsInFolder(config.path_to_chosen_tileset_files);
-    if (config.path_to_meta_tileset && File.exists(config.path_to_meta_tileset)) { tilesetFilepaths.push(config.path_to_meta_tileset) } // add meta tsj to the mix
+    if (config.path_to_meta_tileset && File.exists(config.path_to_meta_tileset)) { tilesetFilepaths.push(config.path_to_meta_tileset) } // add meta tsx to the mix
     if (config.path_to_unknowns_tileset && File.exists(config.path_to_unknowns_tileset)) { tilesetFilepaths.push(config.path_to_unknowns_tileset) } // add unknown tsj to the mix
 
-    for (let filepath of tilesetFilepaths) { // fill all tile dict
-        if (FileInfo.suffix(filepath) !=`tsj`) { continue; };
-        // if(!cache[filepath]){
-        //     cache[filepath] = {}
-        // }
-        // if(!cache[filepath].asset){
-        //     cache[filepath].asset = tiled.open(filepath);
-        // }
-        let assetcheck = getOpenAssetByFilename(filepath)
+    for (let filepath of tilesetFilepaths) {
+        
+        //check if tsj or tsx
+        if(FileInfo.suffix(filepath) != "tsj" && FileInfo.suffix(filepath) != "tsx"){ continue; }
+
+        tiled.log(`checking tileset: ${filepath} with suffix: ${FileInfo.suffix(filepath)}`)
+        if (!File.exists(filepath)) { continue; };
+        let assetcheck = getOpenAssetByFilepath(filepath)
         let tilesetAsset;
         if (assetcheck != null && assetcheck.isTileset) {
             tilesetAsset = assetcheck;
@@ -1206,24 +1178,24 @@ function new_getTileForCddaId(cddaId){
             tilesetAsset = tiled.open(filepath);
         }
         let tilesetname = FileInfo.baseName(filepath);
+        tiled.log(`looking in tileset: ${tilesetname}`)
 
         for (let tile_i in tilesetAsset.tiles) {
             let tile = tilesetAsset.tiles[tile_i]
             let properties = tile.resolvedProperties()
             for (let property_i in properties) {
                 if (properties[property_i].name != "cdda_id") { continue; }; // continue if not cdda id
+                tiled.log(`found property: ${properties[property_i].name} with value: ${properties[property_i].value} in tileset: ${tilesetname} at tile id: ${tile.id}`)
                 if (properties[property_i].value == cddaId) {
+                    tiled.log(`found tile for cdda id: ${cddaId} in tileset: ${tilesetname} at tile id: ${tile.id}`)
                     let id = properties[property_i].id
-                    return tile//, id, filepath
+                    return tile
                 };
             }
         }
-        let tile = add_cdda_id_to_unknowns(cddaId)
-        return tile//, tile.id, tile.filepath
+        let tile = addCddaIdToUnknowns(cddaId)
+        return tile
     }
-
-    // return tile
-
 }
 
 function new_buildTilePaletteDict(import_map) {
@@ -1541,7 +1513,7 @@ function importMaps(filepath,maps){
         tiled.log(`Working on map '${importMapName}'`)
 
         let new_mapEntries = []
-
+        
 
         for(let property in map.object){
             if (map.om_terrain){
@@ -1558,9 +1530,10 @@ function importMaps(filepath,maps){
                                 if(!cddaId){tiled.log(`cddaId not found`)}
                                 if(cddaId){tiled.log(`cddaId '${cddaId}' found`)}
                                 if(!new_allTileDict[cddaId]){
-                                    new_allTileDict[cddaId].tile = new_getTileForCddaId(cddaId);
-                                    // new_allTileDict[cddaId].id = id;
-                                    // new_allTileDict[cddaId].filepath = filepath;
+                                    let tile = new_getTileForCddaId(cddaId)
+                                    if(tile){
+                                        new_allTileDict[cddaId] = { 'tile': tile}
+                                    } else { continue;}
                                 }
 
                                 let tiledLayerEdit = tiledLayer.edit();
@@ -2980,7 +2953,7 @@ function importMap(filepath, j) {
                                     if (all_tileDict.hasOwnProperty("unknown_tile")) {
                                         tiled.log(`unknown tile to be assigned to cdda id '${mapPalette[mapLayerName][thiscell]}'`)
                                         // all_tileDict.unknown_tile.tile = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
-                                        newcell = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
+                                        newcell = addCddaIdToUnknowns(mapPalette[mapLayerName][thiscell])
                                         // tMapArray.push([x,y,newcell])
                                         // continue;
                                     }
@@ -2998,7 +2971,7 @@ function importMap(filepath, j) {
                         if (all_tileDict.hasOwnProperty("unknown_tile")) {
                             tiled.log(`unknown tile assigned to cdda id.`)
                             // all_tileDict.unknown_tile.tile = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
-                            newcell = add_cdda_id_to_unknowns(mapPalette[mapLayerName][thiscell])
+                            newcell = addCddaIdToUnknowns(mapPalette[mapLayerName][thiscell])
                             tMapArray.push([x, y, newcell])
                             continue;
                         }
@@ -3799,7 +3772,7 @@ function add_config_properties(){
         get: function() { return `${this.path_to_tilesets}/meta_tilesets/cdda_meta_tileset.tsx`; }
     });
     Object.defineProperty(config,"path_to_unknowns_tileset",{
-        get: function() { return `${this.path_to_chosen_tileset_files}/unknown_tiles.tsj`; }
+        get: function() { return `${this.path_to_chosen_tileset_files}/unknown_tiles.tsx`; }
     });
     Object.defineProperty(config,"path_to_favorites_tileset",{
         get: function() { return `${this.path_to_tilesets}/favorites/favorites.tsj`; }
