@@ -3,14 +3,17 @@
 //0x400 | 0x2000 | 0x4000 qdir filter for dir no dot and dotdot
 //0x002 | 0x2000 | 0x4000 qdir filter for file no dot and dotdot
 //JSON.stringify(m, null, 2) sringify with formatting
-if(tiled.versionLessThan(`1.9.91`)){
-    tiled.log(`WARNING: version less than 1.9.91`)
+if(tiled.versionLessThan(`1.10.00`)){
+    tiled.log(`WARNING: version less than 1.10.00`)
 }
 var verbose = false
 var use_pretty_symbols = false
 
-const pathToExtras = `${tiled.extensionsPath}/cdda_map_extension_extras`
+var pathToExtras = `${tiled.extensionsPath}/cdda_map_extension_extras`
+var pathToProjectTilesets = `${FileInfo.path(tiled.projectFilePath)}/tilesets`
+var pathToProjectMaps = `${FileInfo.path(tiled.projectFilePath)}/maps`
 const configfilename = "cdda_tiled_extension_config.json";
+
 
 const mapLayerTypes = ["terrain", "furniture", "traps", "vehicles"] // , "items"
 const entityLayerTypes = ["place_items", "place_item", "place_loot", "place_monsters", "place_vehicles", "place_fields", "place_zones"]
@@ -94,6 +97,7 @@ const utf_ramps = {
     }
 }
 const no_id_objects = ["rows", "palettes", "fill_ter", "//", "id", "type"]
+
 
 // let checkmarkImage = new Image();
 // checkmarkImage.loadFromData(Base64.decode("PHN2ZyB3aWR0aD0iMTkuMjEzMTUiIGhlaWdodD0iMTguMjk0OTk0IiB2ZXJzaW9uPSIxLjAiPjxnIHRyYW5zZm9ybT0idHJhbnNsYXRlKC0xOTIuOTA1LC01MTYuMDIwNjQpIj48cGF0aCBzdHlsZT0iZmlsbDojMDBmZjAwIiBkPSJNIDE5Ny42Nzk2OCw1MzQuMzE1NjMgQyAxOTcuNDA0NjgsNTM0LjMxMjA4IDE5Ni4yMTc4OCw1MzIuNTM3MTkgMTk1LjA0MjM0LDUzMC4zNzE0MyBMIDE5Mi45MDUsNTI2LjQzMzY4IEwgMTkzLjQ1OTAxLDUyNS44Nzk2OCBDIDE5My43NjM3MSw1MjUuNTc0OTcgMTk0LjU4MjY5LDUyNS4zMjU2NyAxOTUuMjc4OTYsNTI1LjMyNTY3IEwgMTk2LjU0NDksNTI1LjMyNTY3IEwgMTk3LjE4MTI5LDUyNy4zMzA3NiBMIDE5Ny44MTc2OCw1MjkuMzM1ODQgTCAyMDIuODgyMTUsNTIzLjc5NDUxIEMgMjA1LjY2NzYxLDUyMC43NDY3OCAyMDguODg1MjIsNTE3Ljc1MDg1IDIxMC4wMzIzOSw1MTcuMTM2OTEgTCAyMTIuMTE4MTUsNTE2LjAyMDY0IEwgMjA3LjkwODcxLDUyMC44MDI4MiBDIDIwNS41OTM1MSw1MjMuNDMzMDIgMjAyLjQ1NzM1LDUyNy41NTA4NSAyMDAuOTM5NDcsNTI5Ljk1MzU1IEMgMTk5LjQyMTU5LDUzMi4zNTYyNSAxOTcuOTU0NjgsNTM0LjMxOTE5IDE5Ny42Nzk2OCw1MzQuMzE1NjMgeiIvPjwvZz48L3N2Zz4="), "svg");
@@ -351,13 +355,17 @@ const cte = { // helper functions
 
 function initialize() {
     action_cdda_verbose.checked = true
-
+    if (tiled.projectFilePath === undefined) {
+        return tiled.log(`No project file loaded. Please load a project file.`)
+    }
     var pathToConfig = `${ FileInfo.path(tiled.projectFilePath)}/${configfilename}`
 
     if (!File.exists(pathToConfig)) {
         tiled.log(`no config file found at ${pathToConfig}. Making new config file.`)
         config = new extensionConfig(FileInfo.path(tiled.projectFilePath));
-        config.path_to_cdda = !config.hasOwnProperty(`path_to_cdda`) ? getpathToCDDA() : config.path_to_cdda
+        if(!config.hasOwnProperty(`path_to_cdda`)){
+            return wizard()
+        }
         if (!config.path_to_cdda) { return }
         cte.updateConfig()
         add_config_properties()
@@ -367,6 +375,8 @@ function initialize() {
     }
     if (!File.exists(config.path_to_tilesets)) { File.makePath(config.path_to_tilesets); }
     if (!File.exists(config.path_to_maps)) { File.makePath(config.path_to_maps); }
+    
+    generateMetaTileset()
     return 1;
 }
 function isPathToCddaValid(path){
@@ -415,6 +425,16 @@ function getCurrentlyActiveTileset(){
     }
 }
 function wizard(){
+    if (tiled.projectFilePath === '') {
+        return tiled.log(`No project file loaded. Please load a project file.`)
+    }
+    pathToProjectTilesets = `${FileInfo.path(tiled.projectFilePath)}/tilesets`
+    pathToProjectMaps = `${FileInfo.path(tiled.projectFilePath)}/maps`
+    if (!File.exists(pathToProjectTilesets)) { File.makePath(pathToProjectTilesets); }
+    if (!File.exists(pathToProjectMaps)) { File.makePath(pathToProjectMaps); }
+    if (File.exists(`${FileInfo.path(tiled.projectFilePath)}/${configfilename}`)) {
+        initialize()
+    }
     let wizard = new Dialog();
     wizard.windowTitle = `CDDA Tiled Extension Config`;
     let pathToCdda;
@@ -433,9 +453,12 @@ function wizard(){
     config.path_to_cdda ? pathToCdda = config.path_to_cdda : pathToCdda = FileInfo.path(tiled.projectFilePath)
     config.chosen_tileset ? chosenTileset = config.chosen_tileset : chosenTileset;
     
+    let img = new Image()
+    img.loadFromData(Base64.decode(b64images.metatiles['unknown_tile'], "png"));
+    wizard.addImage("", img)
+    // tile.setImage(img);
     // let img = new Image();
     // img.load("E:/tiledtest/tilesets/favorites/images/f_armchair.png")
-    // wizard.addImage("", img)
 
 
     wizard.addSeparator(`Path to CDDA`);
@@ -551,9 +574,11 @@ function wizard(){
     }
 
     function updateTilesetSelector(valid){
-        updateTilesetList(valid);
+        if(valid){
+            updateTilesetList(valid);
+        }
         isReadyForMapImport()
-        if(valid || installedTilesets.lengeth > 0){
+        if(valid || installedTilesets.length > 0){
             tilesetSelector.visible = true;
             deleteTilesetButton.visible = true;
             installTilesetButton.visible = true;
@@ -575,7 +600,7 @@ function wizard(){
         if(valid){
             cddaPathCheckmark.text = `✓`
             cddaPathCheckmark.toolTip = `This is a valid path to CDDA`
-            cddaPathCheckmark.setStyleSheet("QLabel { color : #66FF99; }"); 
+            cddaPathCheckmark.setStyleSheet("QLabel { color : #66FF99; }");
         } else {
             cddaPathCheckmark.text = `✗`
             cddaPathCheckmark.toolTip = `This is a not valid path to CDDA`
@@ -591,7 +616,7 @@ function wizard(){
         if(isPathValid){
             config.path_to_cdda = newPathToCDDA;
             cte.updateConfig();
-            currentlySavedPathToCdda = `Current path: ${config.path_to_cdda}`;
+            currentlySavedPathToCdda.text = `Current path: ${config.path_to_cdda}`;
         };
         updateCddaPathCheckmark(isPathValid)
         updateTilesetSelector(isPathValid)
@@ -610,15 +635,18 @@ function wizard(){
         } else {
             availableTilesetsList = installedTilesets
         }
-        let displayAvailableTilesetsList = availableTilesetsList.map((t) => {
-            if(t == `favorites`){ return `${t}  (not valid tileset)`}
-            if(installedTilesets.includes(t)){
-                if(getCurrentlyActiveTileset() == t){ return`-${t}-  (-active-)` }
-                return `${t}  (installed)`;
-             } else {
-                return `${t}`
-             }
-        })
+        let displayAvailableTilesetsList;
+        if(availableTilesetsList != null){
+            displayAvailableTilesetsList = availableTilesetsList.map((t) => {
+                if(t == `favorites`){ return `${t}  (not valid tileset)`}
+                if(installedTilesets.includes(t)){
+                    if(getCurrentlyActiveTileset() == t){ return`-${t}-  (-active-)` }
+                    return `${t}  (installed)`;
+                 } else {
+                    return `${t}`
+                 }
+            })
+        }
         tilesetSelector.addItems(displayAvailableTilesetsList)
         chosenTileset ? tilesetSelector.currentIndex = availableTilesetsList.indexOf(chosenTileset) : tilesetSelector.currentIndex = availableTilesetsList.indexOf(config.chosen_tileset);
     }
@@ -629,6 +657,7 @@ function wizard(){
             readinessMessage.text = `Not ready to import maps`;
         }
     }
+    
     wizard.show()
 }
 function getpathToCDDA(){
@@ -758,22 +787,22 @@ function add_cdda_id_to_unknowns(cdda_id) {
     return newUnknownTile
 }
 
+
 // meta tileset
 function generateMetaTileset() {
-    // File.exists(FileInfo.toNativeSeparators(tiled.extensionsPath+"/cdda_map_extension_extras"))
-    if (!config.hasOwnProperty("pathToExtras")) { return tiled.log(`Path to Extras not defined`) }
-    // if(!File.exists(config.pathToExtras)){tiled.makePath(config.pathToExtras);}
-    let tilesetname = "cdda_meta_tileset"
-    let tileset = new Tileset(tilesetname)
-    for (let filepath of getRecursiveFilePathsInFolder(config.pathToExtras)) {
-        if (!filepath.match(/\.png$/)) { continue; }
-        if (verbose >= 2) { tiled.log(`adding '${filepath}' to meta tileset.`); }
-        let tile = tileset.addTile();
-        tile.setProperty("cdda_id", FileInfo.baseName(filepath))
-        tile.imageFileName = filepath
+    if (!File.exists(config.path_to_meta_tileset)) {
+        File.makePath(FileInfo.path(config.path_to_meta_tileset));
     }
-    // tiled.log(`'${config.path_to_meta_tileset}' meta tileset.`)
-    tiled.tilesetFormat("json").write(tileset, config.path_to_meta_tileset)
+    let tilesetname = "cdda_meta_tileset";
+    let tileset = new Tileset(tilesetname);
+    for (let cddaId in b64images.metatiles) {
+        let tile = tileset.addTile();
+        let img = new Image()
+        img.loadFromData(Base64.decode(b64images.metatiles[cddaId], "png"));
+        tile.setImage(img);
+        tile.setProperty("cdda_id", cddaId);
+    }
+    tiled.tilesetFormat("tsx").write(tileset, config.path_to_meta_tileset)
 }
 
 function JSONread(filepath) {
@@ -1135,6 +1164,21 @@ function new_importMapsDialog(){
 }
 /**
  * 
+ * @param {"string"} filename 
+ * @returns asset | null
+ */
+function getOpenAssetByFilename(filename){
+    for (let i = 0; i < tiled.openAssets.length; i++) {
+        if (tiled.openAssets[i].fileName == filename) {
+            return tiled.openAssets[i];
+        }
+    }
+    return null;
+}
+
+
+/**
+ * 
  * @param {"string"} cddaId 
  * @returns tile, id, filepath
  */
@@ -1148,13 +1192,19 @@ function new_getTileForCddaId(cddaId){
 
     for (let filepath of tilesetFilepaths) { // fill all tile dict
         if (FileInfo.suffix(filepath) !=`tsj`) { continue; };
-        if(!cache[filepath]){
-            cache[filepath] = {}
+        // if(!cache[filepath]){
+        //     cache[filepath] = {}
+        // }
+        // if(!cache[filepath].asset){
+        //     cache[filepath].asset = tiled.open(filepath);
+        // }
+        let assetcheck = getOpenAssetByFilename(filepath)
+        let tilesetAsset;
+        if (assetcheck != null && assetcheck.isTileset) {
+            tilesetAsset = assetcheck;
+        } else {
+            tilesetAsset = tiled.open(filepath);
         }
-        if(!cache[filepath].asset){
-            cache[filepath].asset = tiled.open(filepath);
-        }
-        let tilesetAsset = cache[filepath].asset
         let tilesetname = FileInfo.baseName(filepath);
 
         for (let tile_i in tilesetAsset.tiles) {
@@ -3746,7 +3796,7 @@ function add_config_properties(){
         get: function() { return `${this.path_to_tilesets}/${this.chosen_tileset}`; }
     });
     Object.defineProperty(config,"path_to_meta_tileset",{
-        get: function() { return `${this.path_to_chosen_tileset_files}/cdda_meta_tileset.tsj`; }
+        get: function() { return `${this.path_to_tilesets}/meta_tilesets/cdda_meta_tileset.tsx`; }
     });
     Object.defineProperty(config,"path_to_unknowns_tileset",{
         get: function() { return `${this.path_to_chosen_tileset_files}/unknown_tiles.tsj`; }
@@ -3815,10 +3865,9 @@ var CDDAMapFormat = {
 // tiled.log(tiled.actions)
 // tiled.trigger(tiled.actions)
 
-
-// Create New Map
+// Configure cte
 const action_configureCTE = tiled.registerAction("CustomAction_configureCTE", function (action_configureCTE) {
-    initialize()
+    tiled.log(`${action_configureCTE.text} was run.`)
     wizard()
 });
 
@@ -3925,3 +3974,18 @@ tiled.extendMenu("Help", [
     { action: "CustomAction_cdda_debug", after: "Terrain Sets" },
     { separator: true }
 ]);
+
+const b64images = {
+    'metatiles': {
+        'unknown_tile': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABb2lDQ1BpY2MAACiRdZFLSwJRGIYftTLScFFQRIGBRYuEKIiWYZCbamEGWW10vAVehhklpG3QpoXQImrTbdE/qG3QtiAIiiCiVT+g2yZk+o4GStgZznwP7znvxzfvgH0uo2XNlmnI5gpGKBjwLkdWvM5XXAzQQxuDUc3U5xdnw/y7vu6xqXrnV73+v9d0ueIJUwNbu/CkphsFYZmGuY2CrnhHuFtLR+PCR8KjhgwofK30WI1fFKdq/KHYCIdmwK56elMNHGtgLW1khUeEfdlMUfudR32JO5FbWpTaJ7sfkxBBAniJUWSdDAX8UnOSWXPfWNW3QF48mrx1ShjiSJEW76ioRemakJoUPSFPhpLK/W+eZnJivNbdHYDWZ8t6HwLnLlTKlvV9bFmVE3A8wWWu7s9LTlOfopfrmu8QPFtwflXXYntwsQ29j3rUiFYlh2x7MglvZ9AZga5b6FitZfV7zukDhDflF93A/gEMy33P2g8qn2gdex8nfAAAAAlwSFlzAAAOwwAADsMBx2+oZAAAAXZJREFUWEftVTFuwzAMdJLOnfKUjgE6Ni8ojD4lD8hTCqMvaMcCHfOUTNkDpzRMgZJJ8SS0cYYECGBDpO54d5Kb5v6bWYFFgt+L93TtX6gulV2vAsy4DwkBD1wqZCni7RH1acUEkrMGsSLq/9q9RsRf9h9FJKmZ/x64WisJpGS0DFgyI6xlDWKXN9Cwjk7Pm5mKpdNTg6YAxCpThCgV2s3in/5xkHCzOEksdHOW363PKvAL7m5QIpdmAdzPioANcG6gDFSAgzyBEIoslNoB1UMKFGSh+OxDBEA9q76kQabz8T1iv1q/QRKOF1XNUR16oq8hg0oylIGMBankgXTbtmGt6zpzmMgCCczPIDgBTMAZWJKB7CTw1BKl0TzrGqBFYhJCBi7IgDtUToGJN0RAA3/eHoKn359P1Ofe92gOogks6SWB8dm9bhHvJxZY0o9TN5KIq31NQS6ABC4IuArU4Gd7SqevsiDHgG0Ya2ZX4PoE/tzTW9jwAh4loXqYcAhBAAAAAElFTkSuQmCC',
+        'exterior_wall_type': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAASBJREFUWEftl80NgzAMhZNjd8gOXFF36ECdgIE6SXfoDj1SGclt6vovCZAeyAVBovjDfn6EOA1pvp1SuDwfgRtbz8UD4DyOM5v7nR4uJdgjlqQlEeB6/4hyGlKAe7jiwHu6TnqZKoA8IGycB+VgtEyKAJwGoCWlN6OZyMEoAAS1xrsElFALJJWDA7D8RQXADTUNaKXxmJgIYKWudR7hoqYBSWioD5zXSmLpQG1Dqe1o4BZNmAC09fLugDJY+shLxWnCNCIMwAUr9QUWoFQDebolN6QeoungKwNa27SqXjpruAE8PV1zoOkP0P08AACWX9ek1rvn4oTexVZP43yJXv4DYIsW8+7544Ql6VujJAcAex7w1m+NdcevWf8M9P4WvADryMSY38IRKAAAAABJRU5ErkJgggAA',
+        'interior_wall_type': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAUNJREFUWEftV7sNwjAQtQtaJqCEjgnYhQGZArEAAySUTJAGCZCCLtJZx3EvtiWSoyBN5Nj4nt/nQmLftX1wvCIBeFyuYbFefcDg51PODwAcCQh/BpIEWue43CRl+q4NNKY7XzzW65Ccen8eQwC0kSzKhRiEnpPgLBCjAJDLrSLy5BaYkuK8huqOpgCdcoyN2kRBAKUesKTKySFBphjSQ6sZ1Z4ISaD3J/oH8NyIrBRYrucT0x15QCeG1lanYCx2ujBaK9nIAtDUabdbuWcWSgAgKbONiJuQVcyKpDaljJz0WGpE9/Oxt8xXKwEXkoClTyADCMA33F+yh//rOMcAatNIW33q3O+hCVFscqaqnff/Q/IzEpQ4doo10Z0BDWAu8zGbbybU3wFzjP1jeGsO/h8mU7i7dM/4bE6+DLgD2O+2rgy8AHl6JTyK6WOwAAAAAElFTkSuQmCC',
+        't_region_groundcover_urban': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAACxIAAAsSAdLdfvwAAAFsSURBVFhH7VaxEcIwDCQcFXvQswEdszASs9CxAT170ALi7n2y8rKV4JybpIodx/+S9W8Np8v5ven47JbEfj0fafv94UihEoH79ZYWfLPye7dzeizfsc4LQoN6ZLIMaGC8W5AaaISMXpMRsBHqLGhgrJtLRhPY6gGLWuZaZYFlZ1SEAiYR2jpgdYEMaYL6rAHoFaB8H3rLMDuCJSXp7d2dAPUBaNzzBqsI1A2itEVb8g/qA0wZtjCZBJmPeKQwPzoCAdKM7Zhl55/aGRHwNM/mmXFNJZMRYNGWImZnzTwEfqH3B/nVB7r7QCJgCwpjnBtTBvuHqUgXpv0nlAHciNaYtAGh+NjaklpCLdnUPsFK0d6wbj/gabjUJ7CseC7JAkkZqPl5rU+IGJDFWPsByUBIBSy9aL1YCxY5Dvc2jP4sfV4LEiEZeqRKzWY0kIyATWcLACGCfdl+GYFWgDp6AS/tO7sIoymuBbU4gRrRD42S5dZn9Z/CAAAAAElFTkSuQmCC',
+        't_region_shrub': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAEUSURBVFhH7VTBDcIwDKSIbVgA8eHHLIzELPz4IBZgHsCVLnJcJ45FovJwpapp4vjOF+em0+X83qz4bEdgP17POS198ZZwJihwv95SzHduHss5/k/riOPJAV4r7Lg/pOUdD+TAGEsQDdSrIkgSkYyArJCrwIERp5GhpC0qgHTWA1rVNOdRwQNOJBZNSGBcCRpb/94j4PGpCX9JIve2qIBGzHqgFwne5VbOIT5ggfL1RABnzc9cnj1uhdYXSIo9PF+NkOoDVgWaX2h7WuKKPqC5oazSIlrzi4UP4L5rd77kA5YrIqdmcCCQFKgFleSlPRKk5piIH+4D1tGot8CzqWfs//hAz6o8uUKBUCAUCAVCgVBgdQU+RY2Tq8mnmS8AAAAASUVORK5CYII=',
+        't_region_shrub_decorative': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAFVSURBVFhH7VbBDcIwDGwRL7bgzQKIDz9mYQKGYAJm4ccHsQBvtuALuNJFrmvHCUrUTyoh0tbxOefLNf3+ePh0M16LGtj352NIS//4WTg9GLhdriHm92wYy2f8nt4jjicHeGxhu802vF7yQA6MsQTRQC2w83vdnVavyWsUSYWMCpAr5CxwYMRpxVBSAGjgspqRBrRV07McFrwWECv8moiQwDgTNPbutRZIIMRIVoIIS+4GjwXCghBHGihVBFe5l7OKD3igqgbQa95z2XvsCk0XSIo5PF+sINUHvBVofqHNSYkzfUBzQ7lKr9CYX2Bu0AD2u7bnLR/wXBE5NYNDAYGBWJBFL82RIDHHRDzPV8UHvNZEnTBnconY2X1A1UDKecATYCo7Vc8DKUW4LZCul5I0J8b9GJWi2ipqxABWK/eydR7I9Q6tiOYDrghzBPVPbCugMdAY+ALv3sHosxA8fwAAAABJRU5ErkJggg==',
+        't_region_shrub_fruit': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAFcSURBVFhH7VYxDsIwDKSImY+wMiAWNt7CxlvYeAsbC2Jg5SN8AHCli1z3YhOpVRlSCZEmjs+xz5c2u8P+PZvwmY+BfXveW7fyj18Op0EGrudLsvnOtWM7p99lHXbaOcC9g21Xm7S80IYaGGMLwkBzYOvja/Y4LXvLCFIC6QRgT6izoIFhx4IRpwBg4DaaDgfYqWWuJAtRCSQr+umRUMB0JmQcvbMSWCDY2KwkEg7ZDVEWBAtE7HBgqCA0yyOfo+hABEo5gFrrmtvaoysYL+AUe7Q/LyCqA9EJmF6wPb/YZXWAqaE9ZRSopxfYmziAfmc9n9OBSBXhkwkcAkgZ8Ixy6ZU9FsRTTNhrf6PoQFQaVwlLNg9hO7kOUA7o+8C2EurofStE5MyWwN589mJi3w72Bi0BF3+dEliFG6LGkQ9XCVnbRA5L110SWi7ogLTml4JWHahCVDNQM/BXGfgAbwfMTnenC4kAAAAASUVORK5CYII=',
+        't_region_tree_fruit': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAGdSURBVFhHxVZBbgIxDATU/gVEJSpxQVw4ladU/UPP/QMvqNQvlBMXxBEkKngAJ77QQ8GLnHodJ3bIRrsSYpM4nvHY8aY7e5v/dVp8eiWw1z+byi384y+E00UFVotvZ3Odq975HB3DOtpR5wgeC2w6nLjlB2pIgfGdg0igIbD9x2Pn6f3XW0aSQKSWAoiQR2mdQxQanQQOpOhTIyBFDXMpKmgp4KS8IgQwqgJXQBpbC5lHD/tcEVqdWOw0FcAHpqpWhBbnFhuI9PVzXJn2D1u35Th49rYX6QMIbiHrFIideUtfSDmelJgjgMVHHTXdFyRFojXAewLtjlyVbAUkdjFV0P5eYNyvFmFqX7AUHrUp0gcoQCvHMEUFNQUpzu6xVfsAP4pwMnhdSGMrGe9ryPuAdBTBOf9yhu4PGhH1PqA5yF0Xb0ToFOXOBYntjxYhzS1vSpiaUIqspFvvA0XuAzT6r9PZDUcDX5fGCOyW/9d6Sf7Ry+2qz59sAhowAIbAYa31TlicQCx6UCA7BRTAko7Ga4A61KKVirB4CrSGdAFKW8xk1HrfiQAAAABJRU5ErkJggg==',
+        't_region_tree_nut': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAGkSURBVFhHxVa7TgMxELwgOiT+AikRRagQoqFKfoM2n5SWkl9IKpoIUUGBQEqbKiUSNWQvGmdvvX6erbMU5by2d2YfnrvRw2L+1ww4zmpgbz5fW7f0j58L5xwLL8uV2XPISvssbXxO69jHnV+9rZrNxWULLO1PBzuN++s7s2QIcIcEBOcSRAPlQAAh2+PvT4M5t4McEemUgIBllLE2kODRcVCsEyk+OgS0qMmWkgVEJ4EAKklZTUhgPAsyA9pca7CY6OncqMY1lA2oEUSpOk1Y6kpS+re3x5s0/no3br8nNxZEFR0AeExATh1I1YXQ9XSRMQTQfNwRF6RcXQhlwdsDUhPIGWxSLXtnQGPqywr25wLjfLAJU3UhlHK5XkUHOMgg1zAlC8ESpDjL2WsISP3nHY81vAe025EDTmes17HPkUsLcsEtArLj+ziOPau+jmMPl9jnbUJNiEqAch+D60CV7wEe4fNub6bTiZ2/YgQ+1qfPeq1M09nxA0WO3gRCwAToAreuYekGi/FXXYp90RPB3iXgADHlKN4D3GEoWq0k1UsQ6oN/9kfBhqfcN8MAAAAASUVORK5CYII=',
+        't_region_tree_shade': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAF7SURBVFhHzVY7DsIwDKWIw1AxlBGxMMFZOBJX4AowsSBGGBAcgIlLAC6ycR03cfqhrVQ1aRy/Z+fFSbJYr16DDp9hG9jH6yl3C198y3ASzMBhsyObz7+8Lf/xPoyjHXeO4L7A5pMZDY+4IQfGtgTRQGOziCSBSIGAjJBngQOjnUYGnFqygKQLGtCihn8xWYgBBxKOCAGMZwLaoX7sEnB7EmEdJ3KuJQsoxIIGmiLBVT6+ncntPZ06EK3UgZhAKAO+PW+pC1W3JxFA8XFH/6gLXg1Y6oKvJliWwkvAlxV0XjX1aiHSGMfWBUvUrdcBDtD7bdh5HSACWPNR1fIr7wdlZ4S2c3y6cE7DMlWDYylIrR+7KwoEtKg4+1B0cr5lRxABy7kfik7zESKhngWhSTiOy8L70A4R7VUdaOU+wCPcPp7UzVI3t40RuOx/13ptCbPl96ovn9oEQsAAWAYOY/2phFblx9r5ogdftZeAA1iWo3ENcIehaLXsda6BN0cwzSD5/eJaAAAAAElFTkSuQmCC'
+    }
+}
