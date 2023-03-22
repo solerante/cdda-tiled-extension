@@ -730,10 +730,14 @@ function addCddaIdToUnknowns(cdda_id) {
     }
     let unknownsAssetCheck = getOpenAssetByFilepath(config.path_to_unknowns_tileset)
     if (unknownsAssetCheck != null && unknownsAssetCheck.isTileset) {
+        tiled.log(`unknowns tileset already open`)
         unknowns = unknownsAssetCheck;
     } else {
+        tiled.log(`unknowns tileset not open, opening now...`)
         unknowns = tiled.open(config.path_to_unknowns_tileset);
     }
+    if(unknowns.isTileset == false){tiled.log(`unknowns is not tileset`)}
+    if(unknowns.isTileset == true){tiled.log(`unknowns is tileset`)}
 
     // return unknown tile if already made
     for (let tile_i in unknowns.tiles) {
@@ -756,7 +760,7 @@ function addCddaIdToUnknowns(cdda_id) {
     
     if (verbose >= 1) { tiled.log(`'${newUnknownTile.property(`cdda_id`)}' added to unknowns.`) }
 
-    tiled.tilesetFormat("json").write(unknowns, config.path_to_unknowns_tileset);
+    tiled.tilesetFormat("tsx").write(unknowns, config.path_to_unknowns_tileset);
     return newUnknownTile
 }
 
