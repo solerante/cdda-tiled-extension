@@ -108,8 +108,42 @@ const no_id_objects = ["rows", "palettes", "fill_ter", "//", "id", "type"]
 var skipOverwrite = true;
 var overwriteExisting = true;
 var config = {};
-var imageCache = {};
+// var imageCache = {};
 var cache = {};
+
+const timers = {};
+
+function startTimer(name) {
+  if (!name) {
+    tiled.error('Timer name is required');
+    return;
+  }
+  
+  timers[name] = new Date().getTime();
+}
+
+function stopTimer(name) {
+  if (!timers[name]) {
+    tiled.error(`Timer "${name}" not found`);
+    return;
+  }
+
+  const duration = new Date().getTime() - timers[name];
+  tiled.log(`Timer "${name}": ${duration} ms`);
+  delete timers[name];
+}
+
+// Usage example:
+startTimer('part1');
+// Your script part 1
+stopTimer('part1');
+
+startTimer('part2');
+  // Your script part 2
+  startTimer('nested');
+  // Your nested script part
+  stopTimer('nested');
+stopTimer('part2');
 
 const cte = { // helper functions
     adjustTSJ: (filepath) => {
@@ -1160,51 +1194,54 @@ function getOpenAssetByFilepath(filename){
  * @returns tile
  */
 function new_getTileForCddaId(cddaId){
+    startTimer('getatileforcddaid');
     tiled.log(`#####looking for tile for cdda id: ${cddaId}#####`)
     // TODO guarantee special tilesets are generated?
     // get tile locations known for cdda ids in map
-    let tilesetFilepaths = getRecursiveFilePathsInFolder(config.path_to_chosen_tileset_files);
+    let tilesetFilepaths = [];
     if (config.path_to_meta_tileset && File.exists(config.path_to_meta_tileset)) { tilesetFilepaths.push(config.path_to_meta_tileset) } // add meta tsx to the mix
-    if (config.path_to_unknowns_tileset && File.exists(config.path_to_unknowns_tileset)) { tilesetFilepaths.push(config.path_to_unknowns_tileset) } // add unknown tsj to the mix
-
+    tilesetFilepaths.push(...getRecursiveFilePathsInFolder(config.path_to_chosen_tileset_files));
+    // if (config.path_to_unknowns_tileset && File.exists(config.path_to_unknowns_tileset)) { tilesetFilepaths.push(config.path_to_unknowns_tileset) } // add unknown tsj to the mix
+    if(verbose>0){ tiled.log("tilesetFilepaths:") };
+    if(verbose>0){ tiled.log(tilesetFilepaths) };
     for (let filepath of tilesetFilepaths) {
         
         //check if tsj or tsx
         if(FileInfo.suffix(filepath) != "tsj" && FileInfo.suffix(filepath) != "tsx"){ continue; }
 
-        tiled.log(`checking tileset: ${filepath} with suffix: ${FileInfo.suffix(filepath)}`)
+        if(verbose>0){ tiled.log(`checking tileset: ${filepath} with suffix: ${FileInfo.suffix(filepath)}`) };
         if (!File.exists(filepath)) { continue; };
-        let assetcheck = getOpenAssetByFilepath(filepath)
         let tilesetAsset;
-        if (assetcheck != null && assetcheck.isTileset) {
-            tilesetAsset = assetcheck;
-        } else {
-            tilesetAsset = tiled.open(filepath);
+        if(!cache[filepath]){
+            cache[filepath] = tiled.open(filepath)
         }
+        tilesetAsset = cache[filepath]
+        // if (assetcheck != null && assetcheck.isTileset) {
+        //     tilesetAsset = assetcheck;
+        // } else {
+        //     tilesetAsset = tiled.open(filepath);
+        // }
+        // let tilesetAsset = tiled.open(filepath)
         let tilesetname = FileInfo.baseName(filepath);
-        tiled.log(`looking in tileset: ${tilesetname}`)
+        if(verbose>0){ tiled.log(`looking in tileset: ${tilesetAsset.name}`) };
 
         for (let tile_i in tilesetAsset.tiles) {
             let tile = tilesetAsset.tiles[tile_i]
-            let properties = tile.resolvedProperties()
-            for (let property_i in properties) {
-                if (properties[property_i].name != "cdda_id") { continue; }; // continue if not cdda id
-                tiled.log(`found property: ${properties[property_i].name} with value: ${properties[property_i].value} in tileset: ${tilesetname} at tile id: ${tile.id}`)
-                if (properties[property_i].value == cddaId) {
-                    tiled.log(`found tile for cdda id: ${cddaId} in tileset: ${tilesetname} at tile id: ${tile.id}`)
-                    let id = properties[property_i].id
+            if("cdda_id" in tile.resolvedProperties()){
+                if(tile.resolvedProperty("cdda_id") == cddaId){
                     return tile
-                };
-            }
+                }
+            };
         }
-        let tile = addCddaIdToUnknowns(cddaId)
-        return tile
     }
+    let tile = addCddaIdToUnknowns(cddaId)
+    stopTimer('getatileforcddaid');
+    return tile
 }
 
 function new_buildTilePaletteDict(import_map) {
-    tiled.log(`------- Palette Loading Area ---------`);
-
+   if(verbose>0){ tiled.log(`------- Palette Loading Area ---------`);
+};
     function getPaletteFileData(mapFilePalettes, filepath) {
         if (verbose) { tiled.log(`checking palette '${filepath}'`); }
         const file = new TextFile(filepath, TextFile.ReadOnly)
@@ -1365,12 +1402,15 @@ function new_buildTilePaletteDict(import_map) {
     return mapPalette;
 }
 function importMaps(filepath,maps){
+    startTimer('importmaps');
     let originalOpenAssets = tiled.openAssets
     let tiledMap;
-    let tileMapName = FileInfo.baseName(filepath)
+    let tileMapName = FileInfo.baseName(filepath);
 
-    let mapwidth = 0
-    let mapheight = 0
+    // let cache = {};
+
+    let mapwidth = 0;
+    let mapheight = 0;
     for (let i in maps) { // find largest dimensions neccessary for map size
         let map = maps[i]
         let xy;
@@ -1386,13 +1426,14 @@ function importMaps(filepath,maps){
 
         // break; // Why break here?
     }
-    tiledMap = prepareTilemap(tileMapName, [mapwidth, mapheight])
     
-    // let tm = new TileMap()
-    // tm.setSize(mapsize[0], mapsize[1]);
-    // tm.setTileSize(32, 32);
-    // tm.orientation = TileMap.Orthogonal;
-    // if (verbose >= 1) { tiled.log(`tilemap name: ${tmname}`) }
+    tiledMap = new TileMap();
+    tiledMap.setSize(mapwidth, mapheight);
+    tiledMap.setTileSize(32, 32);
+    tiledMap.orientation = TileMap.Orthogonal;
+    tiledMap.renderOrder = TileMap.RightDown;
+    tiledMap.setProperty("cdda_mapfile", tileMapName);
+
 
     function new_prepareTiledLayer(import_map, layername) {
 
@@ -1492,15 +1533,14 @@ function importMaps(filepath,maps){
                     }
                 }
                 objectGroup.addObject(obj);
-
             }
             return objectGroup;
         }
-
     }
     let layergroups = [];
     const new_allTileDict = {}
 
+    startTimer('getmaparray');
 
     for (let i in maps) { // get map array
         var map = maps[i];
@@ -1517,70 +1557,73 @@ function importMaps(filepath,maps){
         tiled.log(`Working on map '${importMapName}'`)
 
         let new_mapEntries = []
-        
-
-        for(let property in map.object){
-            if (map.om_terrain){
-                if (mapLayerTypes.includes(property)){
-                    let tiledLayer = new TileLayer(property)
-                    for ( let y in map.object.rows){
-                        let row = map.object.rows[y]
-                        for (let x in row){
-                            let symbol = row[x]
-                            tiled.log(`found symbol '${symbol}'`)
-                            if (map.object[property] && map.object[property][symbol]){
-                                tiled.log(`looking for cddaId`)
-                                let cddaId = chooseIdFromSymbolObject(property,map.object[property][symbol])
-                                if(!cddaId){tiled.log(`cddaId not found`)}
-                                if(cddaId){tiled.log(`cddaId '${cddaId}' found`)}
-                                if(!new_allTileDict[cddaId]){
-                                    let tile = new_getTileForCddaId(cddaId)
-                                    if(tile){
-                                        new_allTileDict[cddaId] = { 'tile': tile}
-                                    } else { continue;}
-                                }
-
-                                let tiledLayerEdit = tiledLayer.edit();
-                                tiledLayerEdit.setTile( x, y, new_allTileDict[cddaId].tile )
-                                tiledLayerEdit.apply()
-
-                                // let newentry = {
-                                //     'x': x,
-                                //     'y': y,
-                                //     'layer': property,
-                                //     'cddaId': cddaId,
-                                //     'tile': new_allTileDict[cddaId].tile,
-                                //     'id': new_allTileDict[cddaId].id,
-                                //     'filepath': new_allTileDict[cddaId].filepath
-                                // }
-                                // new_mapEntries.push(newentry);
+        let layers = {}
+        let palettes;
+        if(map.object.palettes){
+            palettes = getPalettesJSON(map.object.palettes)
+        }
+        for(let mapLayerType of mapLayerTypes){
+            startTimer('mapLayerType');
+            let tiledLayer = new TileLayer(mapLayerType)
+            if (map.om_terrain && map.object.rows) {
+                for ( let y in map.object.rows){
+                    startTimer('row');
+    
+                    let row = map.object.rows[y]
+                    for (let x in row){
+                        startTimer('symbol');
+                        let symbol = row[x]
+                        tiled.log(`found symbol '${symbol}'`)
+                        let cddaId;
+                        if (map.object[mapLayerType]){
+                            if(!layers[mapLayerType]){layers[mapLayerType] = new TileLayer(mapLayerType);}
+                            if(map.object[mapLayerType][symbol]){
+                                cddaId = chooseIdFromSymbolObject(mapLayerType,map.object[mapLayerType][symbol])
+                                // if(!cddaId){tiled.log(`cddaId not found for symbol '${symbol}' under property '${property}'`)}
+                                // if(cddaId){tiled.log(`cddaId '${cddaId}' found for symbol '${symbol}' under property '${property}'`)}
                             }
                         }
+                        if(!cddaId && map.object.palettes && palettes){
+                            if(!layers[mapLayerType]){layers[mapLayerType] = new TileLayer(mapLayerType);}
+                            for(let palette of map.object.palettes){
+                                if (palettes[palette][mapLayerType] && palettes[palette][mapLayerType][symbol]){
+                                    cddaId = chooseIdFromSymbolObject(mapLayerType,palettes[palette][mapLayerType][symbol])
+                                    // if(!cddaId){tiled.log(`cddaId not found for symbol '${symbol}' under property '${property}' in palette '${palette}'`)}
+                                    // if(cddaId){tiled.log(`cddaId '${cddaId}' found for symbol '${symbol}' under property '${property}' in palette '${palette}'`)}
+                                }
+                            }
+                        }
+                        if(cddaId){
+                            if(!new_allTileDict[cddaId]){
+                                // tiled.log(`cddaId '${cddaId}' not found in allTileDict, getting new tile...`)
+                                let tile = new_getTileForCddaId(cddaId)
+                                if(tile){
+                                    // tiled.log(`tile created for cddaId '${cddaId}', adding to allTileDict...`)
+                                    new_allTileDict[cddaId] = { 'tile': tile}
+                                } else {
+                                    // tiled.log(`tile not created for cddaId '${cddaId}', skipping...`)
+                                    continue;
+                                }
+                            }
+                            if(layers[mapLayerType]){
+                                layers[mapLayerType].name = mapLayerType
+                                let tiledLayerEdit = layers[mapLayerType].edit();
+                                tiledLayerEdit.setTile( x, y, new_allTileDict[cddaId].tile )
+                                tiledLayerEdit.apply()
+                            }
+                        }
+                        stopTimer('symbol');
                     }
-                    layergroup.addLayer(tiledLayer);
+                    stopTimer('row');
+                    return
+            return
                 }
             }
+            layergroup.addLayer(tiledLayer);
+            stopTimer('mapLayerType');
         }
         layergroups.push(layergroup)
         continue;
-
-
-        // find this map size
-        if (map.object.mapgensize) {
-            for (let y; y < map.object.mapgensize[1]; y++) {
-                mapArray.push(" ".repeat(map.object.mapgensize[0]))
-            }
-        }
-        if (map.object.rows) {
-            mapArray = map.object.rows;
-        }
-        
-        if (verbose >= 1) {
-            tiled.log(`Original Map`)
-            for (let row of mapArray) {
-                tiled.log(row)
-            }
-        }
 
 
         // let mapPalette = new_buildTilePaletteDict(map); // TODO delete
@@ -2293,6 +2336,7 @@ function importMaps(filepath,maps){
         }
         layergroups.push(layergroup)
     }
+    stopTimer('getmaparray');
 
     for (let layerGroup in layergroups.reverse()) {
         tiledMap.addLayer(layergroups[layerGroup]);
@@ -2307,6 +2351,8 @@ function importMaps(filepath,maps){
     }
     tiled.activeAsset = tiledMap
     if (config.snaptogrid) { tiled.trigger("SnapToGrid") }
+    cache = {}
+    stopTimer('importmaps');
 
 
 }
