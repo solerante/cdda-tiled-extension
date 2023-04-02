@@ -251,8 +251,8 @@ const cte = { // helper functions
         return [x, y];
     },
     cropImage: function cropImage(image, importX, importY) {
-        if (!imageCache.hasOwnProperty(image)) {
-            imageCache[image] = new Image(image);
+        if (!cache.hasOwnProperty(image)) {
+            cache[image] = new Image(image);
         }
         // let originalImage = new Image(image);
         let croppedImage = new Image(importX[1] - importX[0], importY[1] - importY[0]);
@@ -263,9 +263,9 @@ const cte = { // helper functions
             for (let px = importX[0]; px < importX[1]; px++) {
                 let x = px - importX[0];
                 if (verbose >= 2) { tiled.log(`'${x},${y}'`); }
-                if (verbose >= 4) { tiled.log(`'${imageCache[image].pixel(px, py)}'`); }
+                if (verbose >= 4) { tiled.log(`'${cache[image].pixel(px, py)}'`); }
                 // if(verbose >= 1){tiled.log(`'${px}, ${py}'`);}
-                croppedImage.setPixel(x, y, imageCache[image].pixel(px, py))
+                croppedImage.setPixel(x, y, cache[image].pixel(px, py))
             };
         };
         // originalImage = undefined;
@@ -801,11 +801,11 @@ function addCddaIdToUnknowns(cdda_id) {
 
 // meta tileset
 function generateMetaTileset() {
-    if (!File.exists(config.path_to_meta_tileset)) {
-        File.makePath(FileInfo.path(config.path_to_meta_tileset));
-    }
     if (!File.exists(`${config.path_to_tilesets}/meta_tilesets`)){
         File.makePath(`${config.path_to_tilesets}/meta_tilesets`);
+    }
+    if (!File.exists(config.path_to_meta_tileset)) {
+        File.makePath(FileInfo.path(config.path_to_meta_tileset));
     }
     let tilesetname = "cdda_meta_tileset";
     let tileset = new Tileset(tilesetname);
