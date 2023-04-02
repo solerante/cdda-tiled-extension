@@ -804,6 +804,9 @@ function generateMetaTileset() {
     if (!File.exists(config.path_to_meta_tileset)) {
         File.makePath(FileInfo.path(config.path_to_meta_tileset));
     }
+    if (!File.exists(`${config.path_to_tilesets}/meta_tilesets`)){
+        File.makePath(`${config.path_to_tilesets}/meta_tilesets`);
+    }
     let tilesetname = "cdda_meta_tileset";
     let tileset = new Tileset(tilesetname);
     for (let cddaId in b64images.metatiles) {
