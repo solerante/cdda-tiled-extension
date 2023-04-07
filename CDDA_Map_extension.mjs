@@ -133,17 +133,17 @@ function stopTimer(name) {
   delete timers[name];
 }
 
-// Usage example:
-startTimer('part1');
-// Your script part 1
-stopTimer('part1');
+// // Usage example:
+// startTimer('part1');
+// // Your script part 1
+// stopTimer('part1');
 
-startTimer('part2');
-  // Your script part 2
-  startTimer('nested');
-  // Your nested script part
-  stopTimer('nested');
-stopTimer('part2');
+// startTimer('part2');
+//   // Your script part 2
+//   startTimer('nested');
+//   // Your nested script part
+//   stopTimer('nested');
+// stopTimer('part2');
 
 const cte = { // helper functions
     adjustTSJ: (filepath) => {
@@ -434,6 +434,13 @@ function isTilesetActive(tileset){
         return false
     }
 }
+function returnPromise(func) {
+    return Promise.resolve(func);
+}
+  
+returnPromise()
+.then(result => tiled.log(result))
+.catch(error => tiled.error(error));
 /**
  * 
  * @param {string} path - path starting with file://
@@ -458,6 +465,7 @@ function getCurrentlyActiveTileset(){
         return false;
     }
 }
+
 function wizard(){
     if (tiled.projectFilePath === '') {
         return tiled.log(`No project file loaded. Please load a project file.`)
@@ -487,9 +495,9 @@ function wizard(){
     config.path_to_cdda ? pathToCdda = config.path_to_cdda : pathToCdda = FileInfo.path(tiled.projectFilePath)
     config.chosen_tileset ? chosenTileset = config.chosen_tileset : chosenTileset;
     
-    let img = new Image()
-    img.loadFromData(Base64.decode(b64images.metatiles['unknown_tile'], "png"));
-    wizard.addImage("", img)
+    // let img = new Image()
+    // img.loadFromData(Base64.decode(b64images.metatiles['unknown_tile'], "png"));
+    // wizard.addImage("", img)
     // tile.setImage(img);
     // let img = new Image();
     // img.load("E:/tiledtest/tilesets/favorites/images/f_armchair.png")
@@ -538,6 +546,11 @@ function wizard(){
             updateTilesetButtons()
             deleteTilesetButton.text = `Deleted`;
             tilesetSelector.currentIndex = rememberChosenTilesetIndex;
+            if(config.chosen_tileset == chosenTileset){
+                config.chosen_tileset = false;
+                cte.updateConfig();
+            }
+            currentlyActiveTilesetText.text = `Active tileset: ${config.chosen_tileset}`;
             return
         }
 
@@ -546,7 +559,6 @@ function wizard(){
         installTilesetButton.text = `Installing...`;
         rememberChosenTilesetIndex = tilesetSelector.currentIndex;
         importTileset(`${newPathToCDDA}/gfx/${chosenTileset}`)
-        installTilesetButton.text = `Installing...`;
         updateTilesetSelector(isPathValid)
         updateTilesetButtons()
         tilesetSelector.currentIndex = rememberChosenTilesetIndex;
@@ -613,9 +625,10 @@ function wizard(){
         }
         isReadyForMapImport()
         if(valid || installedTilesets.length > 0){
+            installedTilesets = getInstalledTilesets()
             tilesetSelector.visible = true;
             deleteTilesetButton.visible = true;
-            installTilesetButton.visible = true;
+            // installTilesetButton.visible = true;
             activateTilesetButton.visible = true;
             cddaPathTilesetWarning.visible = false;
         }
@@ -623,7 +636,7 @@ function wizard(){
             tilesetSelector.clear();
             tilesetSelector.visible = false;
             deleteTilesetButton.visible = false;
-            installTilesetButton.visible = false;
+            // installTilesetButton.visible = false;
             activateTilesetButton.visible = false;
             cddaPathTilesetWarning.visible = true;
         }
@@ -686,12 +699,14 @@ function wizard(){
     }
     function isReadyForMapImport(){
         if(isPathToCddaValid(pathToCdda) && config && config.chosen_tileset && isTilesetInstalled(config.chosen_tileset)){
-            readinessMessage.text = `Ready to import maps`;
+            readinessMessage.text = `Ready to create CDDA maps`;
         } else {
-            readinessMessage.text = `Not ready to import maps`;
+            readinessMessage.text = `Not ready to create maps`;
         }
     }
     
+    installTilesetButton.enabled = false;
+    installTilesetButton.visible = false;
     wizard.show()
 }
 function getpathToCDDA(){
