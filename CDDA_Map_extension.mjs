@@ -351,13 +351,17 @@ const cte = { // helper functions
 
 function initialize() {
     action_cdda_verbose.checked = true
-
+    if (tiled.projectFilePath === undefined) {
+        return tiled.log(`No project file loaded. Please load a project file.`)
+    }
     var pathToConfig = `${ FileInfo.path(tiled.projectFilePath)}/${configfilename}`
 
     if (!File.exists(pathToConfig)) {
         tiled.log(`no config file found at ${pathToConfig}. Making new config file.`)
         config = new extensionConfig(FileInfo.path(tiled.projectFilePath));
-        config.path_to_cdda = !config.hasOwnProperty(`path_to_cdda`) ? getpathToCDDA() : config.path_to_cdda
+        if(!config.hasOwnProperty(`path_to_cdda`)){
+            return wizard()
+        }
         if (!config.path_to_cdda) { return }
         cte.updateConfig()
         add_config_properties()
@@ -551,9 +555,11 @@ function wizard(){
     }
 
     function updateTilesetSelector(valid){
-        updateTilesetList(valid);
+        if(valid){
+            updateTilesetList(valid);
+        }
         isReadyForMapImport()
-        if(valid || installedTilesets.lengeth > 0){
+        if(valid || installedTilesets.length > 0){
             tilesetSelector.visible = true;
             deleteTilesetButton.visible = true;
             installTilesetButton.visible = true;
@@ -610,15 +616,18 @@ function wizard(){
         } else {
             availableTilesetsList = installedTilesets
         }
-        let displayAvailableTilesetsList = availableTilesetsList.map((t) => {
-            if(t == `favorites`){ return `${t}  (not valid tileset)`}
-            if(installedTilesets.includes(t)){
-                if(getCurrentlyActiveTileset() == t){ return`-${t}-  (-active-)` }
-                return `${t}  (installed)`;
-             } else {
-                return `${t}`
-             }
-        })
+        let displayAvailableTilesetsList;
+        if(availableTilesetsList != null){
+            displayAvailableTilesetsList = availableTilesetsList.map((t) => {
+                if(t == `favorites`){ return `${t}  (not valid tileset)`}
+                if(installedTilesets.includes(t)){
+                    if(getCurrentlyActiveTileset() == t){ return`-${t}-  (-active-)` }
+                    return `${t}  (installed)`;
+                 } else {
+                    return `${t}`
+                 }
+            })
+        }
         tilesetSelector.addItems(displayAvailableTilesetsList)
         chosenTileset ? tilesetSelector.currentIndex = availableTilesetsList.indexOf(chosenTileset) : tilesetSelector.currentIndex = availableTilesetsList.indexOf(config.chosen_tileset);
     }
@@ -629,6 +638,7 @@ function wizard(){
             readinessMessage.text = `Not ready to import maps`;
         }
     }
+    
     wizard.show()
 }
 function getpathToCDDA(){
@@ -1135,6 +1145,21 @@ function new_importMapsDialog(){
 }
 /**
  * 
+ * @param {"string"} filename 
+ * @returns asset | null
+ */
+function getOpenAssetByFilename(filename){
+    for (let i = 0; i < tiled.openAssets.length; i++) {
+        if (tiled.openAssets[i].fileName == filename) {
+            return tiled.openAssets[i];
+        }
+    }
+    return null;
+}
+
+
+/**
+ * 
  * @param {"string"} cddaId 
  * @returns tile, id, filepath
  */
@@ -1148,13 +1173,19 @@ function new_getTileForCddaId(cddaId){
 
     for (let filepath of tilesetFilepaths) { // fill all tile dict
         if (FileInfo.suffix(filepath) !=`tsj`) { continue; };
-        if(!cache[filepath]){
-            cache[filepath] = {}
+        // if(!cache[filepath]){
+        //     cache[filepath] = {}
+        // }
+        // if(!cache[filepath].asset){
+        //     cache[filepath].asset = tiled.open(filepath);
+        // }
+        let assetcheck = getOpenAssetByFilename(filepath)
+        let tilesetAsset;
+        if (tiled.isTileset(assetcheck)) {
+            tilesetAsset = assetcheck;
+        } else {
+            tilesetAsset = tiled.open(filepath);
         }
-        if(!cache[filepath].asset){
-            cache[filepath].asset = tiled.open(filepath);
-        }
-        let tilesetAsset = cache[filepath].asset
         let tilesetname = FileInfo.baseName(filepath);
 
         for (let tile_i in tilesetAsset.tiles) {
@@ -3815,10 +3846,9 @@ var CDDAMapFormat = {
 // tiled.log(tiled.actions)
 // tiled.trigger(tiled.actions)
 
-
-// Create New Map
+// Configure cte
 const action_configureCTE = tiled.registerAction("CustomAction_configureCTE", function (action_configureCTE) {
-    initialize()
+    tiled.log(`${action_configureCTE.text} was run.`)
     wizard()
 });
 
