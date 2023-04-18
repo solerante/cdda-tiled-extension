@@ -222,8 +222,8 @@ const cte = { // helper functions
         let fileEdit = dialog.addFilePicker();
         dialog.addNewRow();
         fileEdit.fileUrl = filepath;
-        let acceptButton = dialog.addButton(`Accept`);
         let cancelButton = dialog.addButton(`Cancel`);
+        let acceptButton = dialog.addButton(`Accept`);
         acceptButton.clicked.connect(function () {
             dialog.accept();
         });
@@ -231,11 +231,7 @@ const cte = { // helper functions
             dialog.reject();
         });
         dialog.accepted.connect(() => {
-            if (tiled.platform === "windows") {
-                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\/\/\//, "");
-            } else {
-                newFilepath = fileEdit.fileUrl.toString().replace(/^file\:\//, "");
-            }
+            newFilepath = cte.removeFileStringFromFileUrl(fileEdit.fileUrl.toString());
             cont = true;
         });
         dialog.show();
@@ -321,6 +317,9 @@ const cte = { // helper functions
         // }
         // tiled.log(config.path_to_cdda_palettes)
     },
+    /**
+     * Update config file with contents of config object.
+     */
     updateConfig: function updateConfig() {
         var pathToConfig = `${FileInfo.path(tiled.projectFilePath)}/${configfilename}`
         var configfile = new TextFile(pathToConfig, TextFile.WriteOnly);
@@ -372,7 +371,7 @@ const cte = { // helper functions
      * @param {array} arr - an array with nested arrays.
      * @returns {array} - a flat array with all the values from the nested arrays.
      */
-    flattenArray: function flattenArray(arr, result) {
+    flattenArray: (arr, result) => {
         if (typeof result === "undefined") {
             result = [];
         }
@@ -384,6 +383,66 @@ const cte = { // helper functions
             }
         }
         return result;
+    },
+    isTilesetInstalled: (tileset) => {
+        if(File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets/${tileset}`)){
+            return true
+        } else {
+            return false
+        }
+    },
+    /**
+     * 
+     * @param {string} tileset 
+     * @returns Boolean - true if the tileset is the active tileset, false if it is not.
+     */
+    isTilesetActive: (tileset) => {
+        if(config && config.chosen_tileset && config.chosen_tileset == tileset){
+            return true
+        } else {
+            return false
+        }
+    },
+    /**
+     * Checks if the path to the CDDA directory is valid.
+     * 
+     * @param {string} path - the path to the file to be read
+     * @returns true if the path is valid, false if it is not
+     */
+    isPathToCddaValid: (path) => {
+        if (File.exists(`${path}/data/cataicon.ico`) && File.exists(`${path}/gfx/tile_config_template.json`)) {
+            return true
+        } else {
+            return false
+        }
+    },
+    /**
+     * 
+     * @param {string} path - path starting with file://
+     * @returns - path without file:// depending on OS
+     */
+    removeFileStringFromFileUrl: (path) => {
+        if (tiled.platform === "windows") {
+            return path.toString().replace(/^file\:\/\/\//, "");
+        } else {
+            return path.toString().replace(/^file\:\//, "");
+        }
+    },
+    /**
+     * 
+     * @returns {string|false} - the name of the currently active tileset or false if there is no active tileset.
+     */
+    getCurrentlyActiveTileset: () => {
+        if(config && config.chosen_tileset && File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets/${config.chosen_tileset}`)){
+            return config.chosen_tileset;
+        } else {
+            return false;
+        }
+    },
+    getInstalledTilesets: () => {
+        if(File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets`)){
+            return cte.getFoldersInPath(`${FileInfo.path(tiled.projectFilePath)}/tilesets`);
+        }
     }
 }
 
@@ -413,27 +472,7 @@ function initialize() {
     generateMetaTileset()
     return 1;
 }
-function isPathToCddaValid(path){
-    if (File.exists(`${path}/data/cataicon.ico`) && File.exists(`${path}/gfx/tile_config_template.json`)) {
-        return true
-    } else {
-        return false
-    }
-}
-function isTilesetInstalled(tileset){
-    if(File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets/${tileset}`)){
-        return true
-    } else {
-        return false
-    }
-}
-function isTilesetActive(tileset){
-    if(config && config.chosen_tileset && config.chosen_tileset == tileset){
-        return true
-    } else {
-        return false
-    }
-}
+
 function returnPromise(func) {
     return Promise.resolve(func);
 }
@@ -441,30 +480,6 @@ function returnPromise(func) {
 returnPromise()
 .then(result => tiled.log(result))
 .catch(error => tiled.error(error));
-/**
- * 
- * @param {string} path - path starting with file://
- * @returns - path without file:// depending on OS
- */
-function removeFileStringFromFileUrl(path){
-    if (tiled.platform === "windows") {
-        return path.toString().replace(/^file\:\/\/\//, "");
-    } else {
-        return path.toString().replace(/^file\:\//, "");
-    }
-}
-function getInstalledTilesets(){
-    if(File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets`)){
-        return cte.getFoldersInPath(`${FileInfo.path(tiled.projectFilePath)}/tilesets`);
-    }
-}
-function getCurrentlyActiveTileset(){
-    if(config && config.chosen_tileset && File.exists(`${FileInfo.path(tiled.projectFilePath)}/tilesets/${config.chosen_tileset}`)){
-        return config.chosen_tileset;
-    } else {
-        return false;
-    }
-}
 
 function wizard(){
     if (tiled.projectFilePath === '') {
@@ -482,7 +497,7 @@ function wizard(){
     let pathToCdda;
     let chosenTileset;
     let isPathValid;
-    let installedTilesets = getInstalledTilesets()
+    let installedTilesets = cte.getInstalledTilesets()
     let deleteConfirmCounter = 0;
 
 
@@ -502,19 +517,25 @@ function wizard(){
     // let img = new Image();
     // img.load("E:/tiledtest/tilesets/favorites/images/f_armchair.png")
 
-
+    let folderSelectInstructionsText = `Select any file in main CDDA folder.
+For example, if your CDDA version is a clone of the main repo, you can select 'Makefile'. If you have a release version, you can select 'cataclysm-tiles.exe'.`
     wizard.addSeparator(`Path to CDDA`);
+    let howToSelectFolderText = wizard.addLabel(folderSelectInstructionsText);
+    howToSelectFolderText.wordWrap = true;
+    wizard.addNewRow();
     let currentlySavedPathToCdda = wizard.addLabel(`Current path: ${config.path_to_cdda}`);
     wizard.addNewRow();
-    wizard.addLabel("New path:", true);
+    let pathInputLabel = wizard.addLabel("New path:", true);
+    pathInputLabel.toolTip = folderSelectInstructionsText.replace(/, /g, ",\n");
     let path_to_cdda_filepicker = wizard.addFilePicker();
+    path_to_cdda_filepicker.toolTip = folderSelectInstructionsText.replace(/, /g, ",\n");
     cddaPathCheckmark = wizard.addLabel(``);
     // cddaPathCheckmark.setStyleSheet("QLabel { background-color : red; color : blue; }"); 
     // cddaPathCheckmark.setStyleSheet("QLabel { color : red; }"); 
     path_to_cdda_filepicker.fileUrl = pathToCdda;
-    updateCddaPathCheckmark(pathToCdda);
+    updateCddaPathCheck(pathToCdda);
     wizard.addSeparator(`Tilesets`);
-    let currentlyActiveTilesetText = wizard.addLabel(`Active tileset: ${getCurrentlyActiveTileset()}`);
+    let currentlyActiveTilesetText = wizard.addLabel(`Active tileset: ${cte.getCurrentlyActiveTileset()}`);
     wizard.addNewRow();
     let tilesetSelector = wizard.addComboBox(``, availableTilesetsList);
     let cddaPathTilesetWarning = wizard.addLabel(`-not in root CDDA directory-`);
@@ -522,13 +543,24 @@ function wizard(){
     let deleteTilesetButton = wizard.addButton(`Delete`);
     let installTilesetButton = wizard.addButton(`Install`);
     let activateTilesetButton = wizard.addButton(`Activate`);
-    wizard.addSeparator();
+    wizard.addSeparator(`Maps`);
     let readinessMessage = wizard.addLabel(`Not ready to import maps`);
+    let checkboxOpenAllTilesets = wizard.addCheckBox(`Open tileset`, true);
+    checkboxOpenAllTilesets.toolTip = `If checked, tileset will be opened when a new map is opened.`
+    if (config.open_tileset_on_map_start != null) {
+        checkboxOpenAllTilesets.checked = config.open_tileset_on_map_start;
+    } else {
+        config.open_tileset_on_map_start = checkboxOpenAllTilesets.checked;
+        cte.updateConfig();
+    }
+    checkboxOpenAllTilesets.visible = false;
     wizard.addNewRow();
-    wizard.addLabel(``);
+    let importMapButton = wizard.addButton(`Import map`);
+    let createNewMapButton = wizard.addButton(`New map`);
     wizard.addNewRow();
     wizard.addSeparator();
     let closeButton = wizard.addButton(`Close`);
+    
 
 
     deleteTilesetButton.clicked.connect(function () {
@@ -566,7 +598,7 @@ function wizard(){
     });
     activateTilesetButton.clicked.connect(function () {
         rememberChosenTilesetIndex = tilesetSelector.currentIndex;
-        if(!isTilesetInstalled(chosenTileset)){
+        if(!cte.isTilesetInstalled(chosenTileset)){
             importTileset(`${newPathToCDDA}/gfx/${chosenTileset}`)
         }
         config.chosen_tileset = chosenTileset;
@@ -576,21 +608,30 @@ function wizard(){
         tilesetSelector.currentIndex = rememberChosenTilesetIndex;
         currentlyActiveTilesetText.text = `Active tileset: ${config.chosen_tileset}`;
     });
-
     closeButton.clicked.connect(function () {
-        wizard.reject();
+        wizard.accept();
+    });
+    importMapButton.clicked.connect(function () {
+        wizard.accept();
+        tiled.trigger("cte_importMap")
+    });
+    createNewMapButton.clicked.connect(function () {
+        wizard.accept();
+        tiled.trigger("cte_createNewMap")
+    });
+    checkboxOpenAllTilesets.stateChanged.connect(function () {
+        config.open_tileset_on_map_start = checkboxOpenAllTilesets.checked;
+        cte.updateConfig();
     });
 
-
-
-    isPathToCddaValid(pathToCdda) ? isPathValid = true : isPathValid = false;
+    cte.isPathToCddaValid(pathToCdda) ? isPathValid = true : isPathValid = false;
     newPathToCDDA = pathToCdda;
-    updateCddaPathCheckmark(isPathValid)
+    updateCddaPathCheck(isPathValid)
     updateTilesetSelector(isPathValid)
     updateTilesetButtons()
 
     function updateTilesetButtons(){
-        if(isTilesetInstalled(chosenTileset) ){
+        if(cte.isTilesetInstalled(chosenTileset) ){
             installTilesetButton.enabled = false;
             installTilesetButton.toolTip = `Already installed`;
             installTilesetButton.text = `Installed`;
@@ -603,7 +644,7 @@ function wizard(){
             deleteTilesetButton.enabled = false;
             deleteTilesetButton.text = `Delete`;
         }
-        if(isTilesetActive(chosenTileset)){
+        if(cte.isTilesetActive(chosenTileset)){
             activateTilesetButton.enabled = false;
             activateTilesetButton.toolTip = `Already active`;
             activateTilesetButton.text = `Active`;
@@ -614,7 +655,7 @@ function wizard(){
         }
         if(["favorites"].includes(chosenTileset)){
             activateTilesetButton.enabled = false;
-            activateTilesetButton.toolTip = `This is a meta tileset and not a CDDA tileset that can be imported.`;
+            activateTilesetButton.toolTip = `This is a meta tileset and not a CDDA tileset. It cannot be imported.`;
             activateTilesetButton.text = `Wrong Type`;
         }
     }
@@ -625,7 +666,7 @@ function wizard(){
         }
         isReadyForMapImport()
         if(valid || installedTilesets.length > 0){
-            installedTilesets = getInstalledTilesets()
+            installedTilesets = cte.getInstalledTilesets()
             tilesetSelector.visible = true;
             deleteTilesetButton.visible = true;
             // installTilesetButton.visible = true;
@@ -643,29 +684,31 @@ function wizard(){
     }
     // ✅ ❌
     // font-variant: small-caps;
-    function updateCddaPathCheckmark(valid){
+    function updateCddaPathCheck(valid){
         if(valid){
             cddaPathCheckmark.text = `✓`
-            cddaPathCheckmark.toolTip = `This is a valid path to CDDA`
+            cddaPathCheckmark.toolTip = `Valid path to CDDA saved`
             cddaPathCheckmark.setStyleSheet("QLabel { color : #66FF99; }");
+            howToSelectFolderText.visible = false;
         } else {
             cddaPathCheckmark.text = `✗`
             cddaPathCheckmark.toolTip = `This is a not valid path to CDDA`
             cddaPathCheckmark.setStyleSheet("QLabel { color : red; }"); 
+            howToSelectFolderText.visible = true;
         }
     }
 
     path_to_cdda_filepicker.fileUrlChanged.connect(() => {
         deleteConfirmCounter = 0
         path_to_cdda_filepicker.fileUrl = FileInfo.path(path_to_cdda_filepicker.fileUrl)
-        newPathToCDDA = removeFileStringFromFileUrl(path_to_cdda_filepicker.fileUrl)
-        isPathToCddaValid(newPathToCDDA) ? isPathValid = true : isPathValid = false;
+        newPathToCDDA = cte.removeFileStringFromFileUrl(path_to_cdda_filepicker.fileUrl)
+        cte.isPathToCddaValid(newPathToCDDA) ? isPathValid = true : isPathValid = false;
         if(isPathValid){
             config.path_to_cdda = newPathToCDDA;
             cte.updateConfig();
             currentlySavedPathToCdda.text = `Current path: ${config.path_to_cdda}`;
         };
-        updateCddaPathCheckmark(isPathValid)
+        updateCddaPathCheck(isPathValid)
         updateTilesetSelector(isPathValid)
     })
     tilesetSelector.currentTextChanged.connect(() => {
@@ -675,7 +718,7 @@ function wizard(){
     })
 
     function updateTilesetList(valid){
-        installedTilesets = getInstalledTilesets()
+        installedTilesets = cte.getInstalledTilesets()
         tilesetSelector.clear()
         if(valid){
             availableTilesetsList = cte.getFoldersInPath(`${newPathToCDDA}/gfx`);
@@ -687,7 +730,7 @@ function wizard(){
             displayAvailableTilesetsList = availableTilesetsList.map((t) => {
                 if(t == `favorites`){ return `${t}  (not valid tileset)`}
                 if(installedTilesets.includes(t)){
-                    if(getCurrentlyActiveTileset() == t){ return`-${t}-  (-active-)` }
+                    if(cte.getCurrentlyActiveTileset() == t){ return`-${t}-  (-active-)` }
                     return `${t}  (installed)`;
                  } else {
                     return `${t}`
@@ -698,13 +741,18 @@ function wizard(){
         chosenTileset ? tilesetSelector.currentIndex = availableTilesetsList.indexOf(chosenTileset) : tilesetSelector.currentIndex = availableTilesetsList.indexOf(config.chosen_tileset);
     }
     function isReadyForMapImport(){
-        if(isPathToCddaValid(pathToCdda) && config && config.chosen_tileset && isTilesetInstalled(config.chosen_tileset)){
+        if(cte.isPathToCddaValid(pathToCdda) && config && config.chosen_tileset && cte.isTilesetInstalled(config.chosen_tileset)){
             readinessMessage.text = `Ready to create CDDA maps`;
+            readinessMessage.active = false;
+            importMapButton.enabled = true;
+            createNewMapButton.enabled = true;
         } else {
             readinessMessage.text = `Not ready to create maps`;
+            importMapButton.enabled = false;
+            createNewMapButton.enabled = false;
         }
     }
-    
+    isReadyForMapImport()
     installTilesetButton.enabled = false;
     installTilesetButton.visible = false;
     wizard.show()
@@ -2360,12 +2408,18 @@ function importMaps(filepath,maps){
         tiledMap.addLayer(layergroups[layerGroup]);
     }
     tiledMap.setProperty("import_tileset", config.chosen_tileset)
-
+    let tilesetFilepaths = getRecursiveFilePathsInFolder(config.path_to_chosen_tileset_files);
     let path_to_maps = `${config.path_to_maps}/${FileInfo.baseName(filepath)}.tmj`
     for (let openAsset of tiled.openAssets) {
         if (originalOpenAssets.includes(openAsset)) { continue; }
         if (openAsset == tiledMap) { continue; }
+        if (config.open_tileset_on_map_start && openAsset.fileName in tilesetFilepaths) { continue; }
         tiled.close(openAsset)
+    }
+    if (config.open_tileset_on_map_start) {
+        for (let tilesetFilepath of tilesetFilepaths) {
+            tiled.open(tilesetFilepath)
+        }
     }
     tiled.activeAsset = tiledMap
     if (config.snaptogrid) { tiled.trigger("SnapToGrid") }
@@ -2585,83 +2639,214 @@ function chooseTilesetDialog(filepath) {
  * @returns {string} - filepath
  * @returns {Array.<object>} - selected maps of mapfile
  */
-function importMapChoiceDialog(filepath) {
-    // if([`linux`,`unix`,`macos`].includes(tiled.platform)){if(verbose >=1){tiled.log(`nix system`);};filepath = `/${filepath}`;}
-    if (!filepath) { return tiled.log("Action cancelled.") }
+function importMapChoiceDialog() {
+    if(!cte.isPathToCddaValid(config.path_to_cdda)){ wizard(); return;}
     let cont = false
+    let selectedMapPath;
     let chosenEntries = []
-    let f = new TextFile(filepath, TextFile.ReadOnly);
-    f.codec = "UTF-8"
-    let c = f.readAll();
-    f.close();
-    let j = JSON.parse(c);
-    let dialog = new Dialog()
-    dialog.windowTitle = `Select Maps to Import`
-    dialog.addLabel(`Select maps (om_terains or [n] nested) to import from map file '${FileInfo.fileName(filepath)}'.\n
+    let mapEntriesToImport = {}
+    let page = 0;
+    let entriesPerPage = 10;
+    let columns = 2;
+    let subMapInstructions = `Select maps (om_terrains or [n] nested) to import from map file.\n
 Maps with different sizes will all import with largest size.
 MouseOver tooltips not formatted - for preview only.\n
-Don't forget to SAVE YOUR MAP`, true)
+Don't forget to SAVE YOUR MAP`
+
+    let dialog = new Dialog()
+    dialog.windowTitle = `Select Maps to Import`
+    dialog.addSeparator(`Select Map`)
+    let filePicker = dialog.addFilePicker(`Select Map`)
+    dialog.addNewRow();
     dialog.addNewRow()
-    dialog.addSeparator(`Maps`)
-    let mapEntriesToImport = {}
-    for (let i in j) {
-        if (j[i].type != "mapgen" || j[i].method != "json") { continue; }
-        let name;
-        let height;
-        let width;
-        let tooltiptext;
-        if (j[i].hasOwnProperty(`om_terrain`)) {
-            name = j[i].om_terrain
-        }
-        if (j[i].hasOwnProperty(`nested_mapgen_id`)) {
-            name = j[i].nested_mapgen_id
-        }
-        if (verbose >= 1) { tiled.log(`pre-loading map '${name}'`); }
-        if (j[i].object.hasOwnProperty(`mapgensize`)) {
-            height = j[i].object.mapgensize[1]
-            width = j[i].object.mapgensize[0]
-            tooltiptext = `No preview for map type 'mapgensize'`
-        }
-        if (j[i].object.hasOwnProperty(`rows`)) {
-            height = j[i].object.rows.length
-            width = j[i].object.rows[0].length
-            tooltiptext = JSON.stringify(j[i].object.rows).replace(/,/g, "\n").replace(/[\[\]]/g, "")
-        }
-        // if(j[i].object.rows.length < 1){continue;}
-        let checkboxdisplay = `${name}`.length < 63 ? name : `${name}`.slice(0, 60) + "..."
-        if (j[i].hasOwnProperty(`nested_mapgen_id`)) {
-            checkboxdisplay = `[n] ${checkboxdisplay}`
-        };
-        let checkbox = dialog.addCheckBox(`${checkboxdisplay} (${width}x${height})`, true)
-        checkbox.toolTip = tooltiptext
-
-        if (j[i].hasOwnProperty(`om_terrain`)) {
-            mapEntriesToImport[j[i].om_terrain] = {
-                "index": i,
-                "checkbox": checkbox,
-                "entry": j[i]
-            }
-        }
-        if (j[i].hasOwnProperty(`nested_mapgen_id`)) {
-            mapEntriesToImport[j[i].nested_mapgen_id] = {
-                "index": i,
-                "checkbox": checkbox,
-                "entry": j[i]
-            }
-        }
-        // mapEntriesToImport.push(entry)
-        dialog.addNewRow()
+    let submapSeparator = dialog.addSeparator(`Select Submaps`, true)
+    let img = new Image()
+    img.loadFromData(Base64.decode(b64images.svgImages['questionmark_in_circle'], "svg"));
+    let submapInfomark = dialog.addImage("", img)
+    let submapPageBackButton = dialog.addButton(`<`, false)
+    let submapPageLabel = dialog.addLabel(` pg ${page} `, false)
+    let submapPageForwardButton = dialog.addButton(`>`, false)
+    if (config.pathToLastImportMap && File.exists(config.pathToLastImportMap)){
+        filePicker.fileUrl = config.pathToLastImportMap;
+    } else {
+        filePicker.fileUrl = `${config.path_to_cdda}/data/json/mapgen`;
     }
-    let backButton = dialog.addButton(`Back`);
-    backButton.clicked.connect(() => {
-        dialog.reject();
-    })
-    // dialog.rejected.connect(() => {
-    //     importMapChoiceDialog(cte.filePicker(filepath))
-    // })
+    // let { checkboxes: checkboxArray, emptyLabels: emptyLabelArray } = generateCheckboxes(entriesPerPage);
 
-    let acceptButton = dialog.addButton(`Accept`);
+    readImportMapFile(cte.removeFileStringFromFileUrl(filePicker.fileUrl));
+    showPage(page);
+    submapInfomark.toolTip = subMapInstructions;
+
+    // generate as many checkboxes as entries per page
+    function generateCheckboxes(num) {
+        let checkboxArray = [];
+        let emptyLabelArray = [];
+        for (let i = 0; i < num; i++) {
+            dialog.addNewRow();
+            let checkbox = dialog.addCheckBox("", false);
+            checkboxArray.push(checkbox);
+    
+            let emptyLabel = dialog.addLabel("");
+            emptyLabel.visible = false;
+            emptyLabelArray.push(emptyLabel);
+        }
+        return { checkboxes: checkboxArray, emptyLabels: emptyLabelArray };
+    }
+    
+    
+    
+
+    
+    tiled.log(`filePicker.fileUrl: ${filePicker.fileUrl}`)
+    filePicker.fileUrlChanged.connect(function () {
+        selectedMapPath = cte.removeFileStringFromFileUrl(filePicker.fileUrl);
+        updateSubMapChoices();
+    });
+    tiled.log(`selectedMapPath: ${selectedMapPath}`)
+    submapPageBackButton.clicked.connect(function () {
+        if (page > 0) {
+            page -= 1;
+            showPage(page);
+        }
+    });
+    
+    submapPageForwardButton.clicked.connect(function () {
+        if (page < Math.ceil(Object.keys(mapEntriesToImport).length / entriesPerPage) - 1) { 
+            page += 1;
+            showPage(page);
+        }
+    });
+    
+
+    function updateSubMapChoices() {
+        if(!File.exists(selectedMapPath)){ return; }
+        readImportMapFile(selectedMapPath);
+        showPage(page);
+    }
+    function updatePageButtons() {
+        if(Object.keys(mapEntriesToImport).length < entriesPerPage){
+            submapPageBackButton.visible = false;
+            submapPageLabel.visible = false;
+            submapPageForwardButton.visible = false;
+        } else {
+            submapPageBackButton.visible = true;
+            submapPageLabel.visible = true;
+            submapPageForwardButton.visible = true;
+        }
+        if(page > 0){
+            submapPageBackButton.enabled = true;
+        } else {
+            submapPageBackButton.enabled = false;
+        }
+        if(Object.keys(mapEntriesToImport).length > entriesPerPage && page < Math.ceil(Object.keys(mapEntriesToImport).length / entriesPerPage)){
+            submapPageForwardButton.enabled = true;
+        } else {
+            submapPageForwardButton.enabled = false;
+        }
+        submapPageLabel.text = ` pg ${page} `
+    }
+    
+    function readImportMapFile(filepath) { //TODO - change checkboxes to be static with visibility toggled
+        mapEntriesToImport = {}
+        let f = new TextFile(filepath, TextFile.ReadOnly);
+        f.codec = "UTF-8"
+        let c = f.readAll();
+        f.close();
+        let j = JSON.parse(c);
+        for (let i in j) {
+            if (j[i].type != "mapgen" || j[i].method != "json") { continue; }
+            let name;
+            let height;
+            let width;
+            let tooltiptext;
+            if (j[i].hasOwnProperty(`om_terrain`)) {
+                name = j[i].om_terrain
+            }
+            if (j[i].hasOwnProperty(`nested_mapgen_id`)) {
+                name = j[i].nested_mapgen_id
+            }
+            if (verbose >= 1) { tiled.log(`pre-loading map '${name}'`); }
+            if (j[i].object.hasOwnProperty(`mapgensize`)) {
+                height = j[i].object.mapgensize[1]
+                width = j[i].object.mapgensize[0]
+                tooltiptext = `No preview for map type 'mapgensize'`
+            }
+            if (j[i].object.hasOwnProperty(`rows`)) {
+                height = j[i].object.rows.length
+                width = j[i].object.rows[0].length
+                tooltiptext = JSON.stringify(j[i].object.rows).replace(/,/g, "\n").replace(/[\[\]]/g, "")
+            }
+            // if(j[i].object.rows.length < 1){continue;}
+            let checkboxdisplay = `${name}`.length < 63 ? name : `${name}`.slice(0, 60) + "..."
+            if (j[i].hasOwnProperty(`nested_mapgen_id`)) {
+                checkboxdisplay = `[n] ${checkboxdisplay}`
+            };
+            let checkbox = dialog.addCheckBox(`${checkboxdisplay} (${width}x${height})`, true)
+            checkbox.toolTip = tooltiptext
+    
+            if (j[i].hasOwnProperty(`om_terrain`)) {
+                mapEntriesToImport[j[i].om_terrain] = {
+                    "index": i,
+                    "checkbox": checkbox,
+                    "name": name,
+                    "width": width,
+                    "height": height,
+                    "tooltip": tooltiptext,
+                    "selected": false,
+                    "entry": j[i]
+                }
+            }
+            if (j[i].hasOwnProperty(`nested_mapgen_id`)) {
+                mapEntriesToImport[j[i].nested_mapgen_id] = {
+                    "index": i,
+                    "checkbox": checkbox,
+                    "name": name,
+                    "width": width,
+                    "height": height,
+                    "tooltip": tooltiptext,
+                    "selected": true,
+                    "entry": j[i]
+                }
+            }
+            mapEntriesToImport.push(entry)
+            dialog.addNewRow()
+        };
+
+    };
+    
+    function showPage(page) {
+        let start = page * entriesPerPage;
+        let keys = Object.keys(mapEntriesToImport);
+        for (let i = 0; i < checkboxArray.length; i++) {
+            if (i + start < keys.length) {
+                let entry = mapEntriesToImport[keys[i + start]];
+                tiled.log(`entry selected: ${entry.selected}`)
+                checkboxArray[i].text = `${entry.name} (${entry.width}x${entry.height})`;
+                checkboxArray[i].toolTip = entry.tooltip;
+                checkboxArray[i].checked = entry.selected;
+                checkboxArray[i].visible = true;
+                emptyLabelArray[i].visible = false;
+            } else {
+                checkboxArray[i].visible = false;
+                if(keys.length > entriesPerPage){
+                    emptyLabelArray[i].visible = true;
+                } else {
+                    emptyLabelArray[i].visible = false;
+                }
+            }
+            checkboxArray[i].toggled.connect(() => {
+                mapEntriesToImport[keys[i + start]].selected = checkboxArray[i].checked;  
+
+            });
+        }
+        updatePageButtons();
+    }
+    
+    
+
+
     let cancelButton = dialog.addButton(`Cancel`);
+    let acceptButton = dialog.addButton(`Accept`);
     acceptButton.clicked.connect(function () {
         dialog.accept();
     })
@@ -2671,6 +2856,8 @@ Don't forget to SAVE YOUR MAP`, true)
     dialog.accepted.connect(() => {
         chosenEntries = []
         let testentries = []
+        config.pathToLastImportMap = selectedMapPath;
+        cte.updateConfig();
         for (let entry in mapEntriesToImport) {
             // tiled.log(mapEntriesToImport[entry].checkbox.checked)
             if (mapEntriesToImport[entry].checkbox.checked) {
@@ -2679,10 +2866,11 @@ Don't forget to SAVE YOUR MAP`, true)
             }
         }
         cont = true
+        importMap(selectedMapPath, chosenEntries);
     })
     dialog.show();
     dialog.exec();
-    return cont ? [removeFileStringFromFileUrl(filepath), chosenEntries] : false;
+    // return cont ? [cte.removeFileStringFromFileUrl(selectedMapPath), chosenEntries] : false;
 }
 function importMap(filepath, j) {
     if (!filepath) { return tiled.log("Action cancelled.") }
@@ -3907,59 +4095,56 @@ var CDDAMapFormat = {
 // tiled.trigger(tiled.actions)
 
 // Configure cte
-const action_configureCTE = tiled.registerAction("CustomAction_configureCTE", function (action_configureCTE) {
+const action_configureCTE = tiled.registerAction("cte_configureCTE", function (action_configureCTE) {
     tiled.log(`${action_configureCTE.text} was run.`)
     wizard()
 });
 
 // Create New Map
-const action_createNewMap = tiled.registerAction("CustomAction_createNewMap", function (action_createNewMap) {
+const action_createNewMap = tiled.registerAction("cte_createNewMap", function (action_createNewMap) {
     tiled.log(`${action_createNewMap.text} was run.`)
     initialize()
     makeEmptyMap()
 });
 // Add new om_terrain layergroup
-const action_newCDDAGroupLayer = tiled.registerAction("CustomAction_newCDDAGroupLayer", function (action_newCDDAGroupLayer) {
+const action_newCDDAGroupLayer = tiled.registerAction("cte_newCDDAGroupLayer", function (action_newCDDAGroupLayer) {
     tiled.log(`${action_newCDDAGroupLayer.text} was run.`)
     initialize() ? addNewOmTerrainToMap() : tiled.log(`Failed to initialize.`)
 });
 // Import CDDA Map
-const action_importMap = tiled.registerAction("CustomAction_importMap", function (action_importMap) {
-    tiled.log(`${action_importMap.text} was run.`)
+const action_importMap = tiled.registerAction("cte_importMap", function (action_importMap) {
     initialize()
-    if (config.pathToLastImportMap == undefined) { config.pathToLastImportMap = `${config.path_to_cdda}/data/json/mapgen/house/house_detatched1.json` }
-    // cte.filePicker(importMap,config.pathToLastImportMap)
-    // cte.filePicker(importMapChoiceDialog,config.pathToLastImportMap)
-    importMap(cte.filePicker(config.pathToLastImportMap))
+    importMapChoiceDialog();
+    // importMap(cte.filePicker(config.pathToLastImportMap))
 });
 // Export CDDA Map
-const action_exportMap = tiled.registerAction("CustomAction_CDDA_map_exportMap", function (action_exportMap) {
+const action_exportMap = tiled.registerAction("cte_CDDA_map_exportMap", function (action_exportMap) {
     tiled.log(`${action_exportMap.text} was run.`)
     initialize()
     exportMap()
 });
 // Find tile in tileset by CDDA ID
-const action_findTileInTilemap = tiled.registerAction("CustomAction_CDDA_map_findTileInTileset", function (action_findTileInTilemap) {
+const action_findTileInTilemap = tiled.registerAction("cte_CDDA_map_findTileInTileset", function (action_findTileInTilemap) {
     tiled.log(`${action_findTileInTilemap.text} was run.`)
     initialize() ? findTileInTilesets() : tiled.log("Action aborted.")
 });
 // Add sprite to favorites tileset
-const action_add_sprite_to_favotires = tiled.registerAction("CustomAction_CDDA_add_sprite_to_favotires", function (action_add_sprite_to_favotires) {
+const action_add_sprite_to_favotires = tiled.registerAction("cte_CDDA_add_sprite_to_favotires", function (action_add_sprite_to_favotires) {
     tiled.log(`${action_add_sprite_to_favotires.text} was run.`)
     initialize() ? addSpriteToFavotires() : tiled.log("Action aborted.")
 });
 // toggle verbose mode
-const action_cdda_verbose = tiled.registerAction("CustomAction_cdda_verbose", function (action_cdda_verbose) {
+const action_cdda_verbose = tiled.registerAction("cte_cdda_verbose", function (action_cdda_verbose) {
     tiled.log(action_cdda_verbose.text + " was " + (action_cdda_verbose.checked ? "checked" : "unchecked"))
     action_cdda_verbose.checked ? verbose = true : verbose = false
 });
 // toggle unicode character usage
-const action_cdda_unicode_set_toggle = tiled.registerAction("CustomAction_cdda_unicode_set_toggle", function (action_cdda_unicode_set_toggle) {
+const action_cdda_unicode_set_toggle = tiled.registerAction("cte_cdda_unicode_set_toggle", function (action_cdda_unicode_set_toggle) {
     tiled.log(action_cdda_unicode_set_toggle.text + " was " + (action_cdda_unicode_set_toggle.checked ? "checked" : "unchecked"))
     action_cdda_unicode_set_toggle.checked ? use_pretty_symbols = true : use_pretty_symbols = false
 });
 // test action for debug
-const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", function (action_cdda_debug) {
+const action_cdda_debug = tiled.registerAction("cte_cdda_debug", function (action_cdda_debug) {
     tiled.log(`${action_cdda_debug.text} was run.`)
     initialize()
     let filepath = cte.filePicker(config.pathToLastImportMap)
@@ -3969,7 +4154,6 @@ const action_cdda_debug = tiled.registerAction("CustomAction_cdda_debug", functi
     
     tiled.log(`debug finished`)
 });
-
 action_configureCTE.text = "Configure CTE"
 action_createNewMap.text = "Create new CDDA map"
 action_newCDDAGroupLayer.text = "Add new om_terrain to map"
@@ -3992,27 +4176,27 @@ action_cdda_debug.shortcut = "CTRL+D"
 tiled.registerMapFormat("cdda map", CDDAMapFormat)
 tiled.extendMenu("File", [
     { separator: true },
-    { action: "CustomAction_importMap", before: "Close" },
-    { action: "CustomAction_createNewMap", before: "Close" },
+    { action: "cte_importMap", before: "Close" },
+    { action: "cte_createNewMap", before: "Close" },
     { separator: true }
 ]);
 tiled.extendMenu("Map", [
     { separator: true },
-    { action: "CustomAction_newCDDAGroupLayer", after: "Terrain Sets" },
-    { action: "CustomAction_cdda_unicode_set_toggle", after: "Terrain Sets" },
+    { action: "cte_newCDDAGroupLayer", after: "Terrain Sets" },
+    { action: "cte_cdda_unicode_set_toggle", after: "Terrain Sets" },
     { separator: true }
 ]);
 tiled.extendMenu("Edit", [
     { separator: true },
-    { action: "CustomAction_CDDA_map_findTileInTileset", before: "Cut" },
-    { action: "CustomAction_CDDA_add_sprite_to_favotires", before: "Cut" },
-    { action: "CustomAction_configureCTE", before: "Preferences" },
+    { action: "cte_CDDA_map_findTileInTileset", before: "Cut" },
+    { action: "cte_CDDA_add_sprite_to_favotires", before: "Cut" },
+    { action: "cte_configureCTE", before: "Preferences" },
     { separator: true }
 ]);
 tiled.extendMenu("Help", [
     { separator: true },
-    { action: "CustomAction_cdda_verbose", after: "Terrain Sets" },
-    { action: "CustomAction_cdda_debug", after: "Terrain Sets" },
+    { action: "cte_cdda_verbose", after: "Terrain Sets" },
+    { action: "cte_cdda_debug", after: "Terrain Sets" },
     { separator: true }
 ]);
 
@@ -4028,5 +4212,8 @@ const b64images = {
         't_region_tree_fruit': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAGdSURBVFhHxVZBbgIxDATU/gVEJSpxQVw4ladU/UPP/QMvqNQvlBMXxBEkKngAJ77QQ8GLnHodJ3bIRrsSYpM4nvHY8aY7e5v/dVp8eiWw1z+byi384y+E00UFVotvZ3Odq975HB3DOtpR5wgeC2w6nLjlB2pIgfGdg0igIbD9x2Pn6f3XW0aSQKSWAoiQR2mdQxQanQQOpOhTIyBFDXMpKmgp4KS8IgQwqgJXQBpbC5lHD/tcEVqdWOw0FcAHpqpWhBbnFhuI9PVzXJn2D1u35Th49rYX6QMIbiHrFIideUtfSDmelJgjgMVHHTXdFyRFojXAewLtjlyVbAUkdjFV0P5eYNyvFmFqX7AUHrUp0gcoQCvHMEUFNQUpzu6xVfsAP4pwMnhdSGMrGe9ryPuAdBTBOf9yhu4PGhH1PqA5yF0Xb0ToFOXOBYntjxYhzS1vSpiaUIqspFvvA0XuAzT6r9PZDUcDX5fGCOyW/9d6Sf7Ry+2qz59sAhowAIbAYa31TlicQCx6UCA7BRTAko7Ga4A61KKVirB4CrSGdAFKW8xk1HrfiQAAAABJRU5ErkJggg==',
         't_region_tree_nut': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAGkSURBVFhHxVa7TgMxELwgOiT+AikRRagQoqFKfoM2n5SWkl9IKpoIUUGBQEqbKiUSNWQvGmdvvX6erbMU5by2d2YfnrvRw2L+1ww4zmpgbz5fW7f0j58L5xwLL8uV2XPISvssbXxO69jHnV+9rZrNxWULLO1PBzuN++s7s2QIcIcEBOcSRAPlQAAh2+PvT4M5t4McEemUgIBllLE2kODRcVCsEyk+OgS0qMmWkgVEJ4EAKklZTUhgPAsyA9pca7CY6OncqMY1lA2oEUSpOk1Y6kpS+re3x5s0/no3br8nNxZEFR0AeExATh1I1YXQ9XSRMQTQfNwRF6RcXQhlwdsDUhPIGWxSLXtnQGPqywr25wLjfLAJU3UhlHK5XkUHOMgg1zAlC8ESpDjL2WsISP3nHY81vAe025EDTmes17HPkUsLcsEtArLj+ziOPau+jmMPl9jnbUJNiEqAch+D60CV7wEe4fNub6bTiZ2/YgQ+1qfPeq1M09nxA0WO3gRCwAToAreuYekGi/FXXYp90RPB3iXgADHlKN4D3GEoWq0k1UsQ6oN/9kfBhqfcN8MAAAAASUVORK5CYII=',
         't_region_tree_shade': 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABcGlDQ1BpY2MAACiRdZE9S8NgFIVPW0WxlQ51EHHIUMWhBVEQcZIKdqkObQWrLknatEKShiRFiqvg4lBwEF38GvwHugquCoKgCCJO/gC/FinxpCm0SHtf3tyHk3suNzeAP6XKmtUzD2i6baaTCWE1tyb0vSPIE4EPc6JsGUuZxSy6xs8j6xgPcbdX97qOEcwXLBnw9ZNnZMO0yZwGqS3bcHmPPCSXxDz5hBwzOSD51tUlj99cLnr85bKZTS8AfrenUGxjqY3lkqmRJ8hRTa3IzXncLwkV9JUM8wjvKCykkUQCAiRUsAkVNuLMOnfW2TfZ8C2jTI/Mp4EqTDqKKNEbo1ph1wKzQr3Ao6Lq7v3/Pi1lesrrHkoAva+O8zkG9O0D9Zrj/J46Tv0MCLwA13rLX+aeZr+p11pa9BgI7wCXNy1NOgCudoHhZ0M0xYYU4PUrCvBxAQzmgMg9MLDu7ar5HudPQHabv+gOODwCxlkf3vgDJcdoGwXBtO4AAAAJcEhZcwAALiMAAC4jAXilP3YAAAF7SURBVFhHzVY7DsIwDKWIw1AxlBGxMMFZOBJX4AowsSBGGBAcgIlLAC6ycR03cfqhrVQ1aRy/Z+fFSbJYr16DDp9hG9jH6yl3C198y3ASzMBhsyObz7+8Lf/xPoyjHXeO4L7A5pMZDY+4IQfGtgTRQGOziCSBSIGAjJBngQOjnUYGnFqygKQLGtCihn8xWYgBBxKOCAGMZwLaoX7sEnB7EmEdJ3KuJQsoxIIGmiLBVT6+ncntPZ06EK3UgZhAKAO+PW+pC1W3JxFA8XFH/6gLXg1Y6oKvJliWwkvAlxV0XjX1aiHSGMfWBUvUrdcBDtD7bdh5HSACWPNR1fIr7wdlZ4S2c3y6cE7DMlWDYylIrR+7KwoEtKg4+1B0cr5lRxABy7kfik7zESKhngWhSTiOy8L70A4R7VUdaOU+wCPcPp7UzVI3t40RuOx/13ptCbPl96ovn9oEQsAAWAYOY/2phFblx9r5ogdftZeAA1iWo3ENcIehaLXsda6BN0cwzSD5/eJaAAAAAElFTkSuQmCC'
+    },
+    'svgImages': {
+        'questionmark_in_circle': 'PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB3aWR0aD0iMTVweCIgaGVpZ2h0PSIxNXB4IiB2aWV3Qm94PSIwIDAgMTUgMTUiIHZlcnNpb249IjEuMSI+CjxnIGlkPSJzdXJmYWNlMSI+CjxwYXRoIHN0eWxlPSIgc3Ryb2tlOm5vbmU7ZmlsbC1ydWxlOm5vbnplcm87ZmlsbDpyZ2IoMCUsMCUsMCUpO2ZpbGwtb3BhY2l0eToxOyIgZD0iTSA2LjIyNjU2MiAxLjM3ODkwNiBDIDQuMjMwNDY5IDEuODM1OTM4IDIuNjk5MjE5IDMuMDc0MjE5IDEuODI4MTI1IDQuODk4NDM4IEMgMS40MTAxNTYgNS43OTY4NzUgMS4zMTI1IDYuMjc3MzQ0IDEuMzEyNSA3LjUgQyAxLjMxMjUgOC43MjI2NTYgMS40MTAxNTYgOS4yMDMxMjUgMS44MzU5MzggMTAuMTAxNTYyIEMgMi40ODQzNzUgMTEuNDc2NTYyIDMuNTE1NjI1IDEyLjUxNTYyNSA0Ljg4MjgxMiAxMy4xNTYyNSBDIDUuNjkxNDA2IDEzLjUzOTA2MiA2LjIyNjU2MiAxMy42NjQwNjIgNy4yNjE3MTkgMTMuNzAzMTI1IEMgOC4wMjM0MzggMTMuNzM4MjgxIDguMjg5MDYyIDEzLjcxODc1IDguODc4OTA2IDEzLjU4MjAzMSBDIDExLjIyNjU2MiAxMy4wMzUxNTYgMTMuMDM1MTU2IDExLjIyNjU2MiAxMy41ODIwMzEgOC44Nzg5MDYgQyAxMy43MTg3NSA4LjI4OTA2MiAxMy43MzgyODEgOC4wMjM0MzggMTMuNzAzMTI1IDcuMjYxNzE5IEMgMTMuNjY0MDYyIDYuMjI2NTYyIDEzLjUzOTA2MiA1LjY5MTQwNiAxMy4xNTYyNSA0Ljg4MjgxMiBDIDEyLjM3NSAzLjIxODc1IDEwLjg2NzE4OCAxLjk0MTQwNiA5LjExMzI4MSAxLjQ1MzEyNSBDIDguNTE5NTMxIDEuMjg5MDYyIDYuNzk2ODc1IDEuMjQ2MDk0IDYuMjI2NTYyIDEuMzc4OTA2IFogTSA4LjMyNDIxOSAyLjU3ODEyNSBDIDkuNDMzNTk0IDIuNzgxMjUgMTAuMzUxNTYyIDMuMjYxNzE5IDExLjEwMTU2MiA0LjA1MDc4MSBDIDEyLjk4NDM3NSA2LjAyMzQzOCAxMi45NTMxMjUgOS4wODk4NDQgMTEuMDE1NjI1IDExLjAxNTYyNSBDIDkuMDUwNzgxIDEyLjk4NDM3NSA1Ljk0OTIxOSAxMi45ODQzNzUgMy45ODQzNzUgMTEuMDE1NjI1IEMgMi44NzEwOTQgOS45MDYyNSAyLjMzMjAzMSA4LjM1NTQ2OSAyLjU1MDc4MSA2Ljg4NjcxOSBDIDIuODcxMDk0IDQuNjQ4NDM4IDQuNDQ5MjE5IDIuOTkyMTg4IDYuNjM2NzE5IDIuNTg1OTM4IEMgNy4zMjAzMTIgMi40NjA5MzggNy42NDA2MjUgMi40NjA5MzggOC4zMjQyMTkgMi41NzgxMjUgWiBNIDguMzI0MjE5IDIuNTc4MTI1ICIvPgo8cGF0aCBzdHlsZT0iIHN0cm9rZTpub25lO2ZpbGwtcnVsZTpub256ZXJvO2ZpbGw6cmdiKDAlLDAlLDAlKTtmaWxsLW9wYWNpdHk6MTsiIGQ9Ik0gNi43ODkwNjIgMy44NDc2NTYgQyA2LjM1MTU2MiAzLjk4ODI4MSA2LjE3MTg3NSA0LjEwMTU2MiA1Ljc5Njg3NSA0LjQ0OTIxOSBDIDUuMzkwNjI1IDQuODI0MjE5IDUuMTA5Mzc1IDUuMzU1NDY5IDUuMDQ2ODc1IDUuODU5Mzc1IEwgNS4wMDM5MDYgNi4yMjY1NjIgTCA2LjIxODc1IDYuMjI2NTYyIEwgNi4yOTI5NjkgNS45NjA5MzggQyA2LjQ0OTIxOSA1LjM3ODkwNiA2LjkwNjI1IDUuMDIzNDM4IDcuNSA1LjAyMzQzOCBDIDguMTk5MjE5IDUuMDIzNDM4IDguNzMwNDY5IDUuNTQyOTY5IDguNzMwNDY5IDYuMjI2NTYyIEMgOC43MzA0NjkgNi42ODM1OTQgOC42MDE1NjIgNi44NzEwOTQgNy45NDE0MDYgNy40MTAxNTYgQyA3LjIyMjY1NiA4LjAwMzkwNiA2Ljg5ODQzOCA4LjUyNzM0NCA2Ljg5ODQzOCA5LjEyMTA5NCBMIDYuODk4NDM4IDkuMzc1IEwgNy41IDkuMzc1IEMgOC4wOTM3NSA5LjM3NSA4LjEwMTU2MiA5LjM3NSA4LjEzNjcxOSA5LjE2NDA2MiBDIDguMjI2NTYyIDguNzYxNzE5IDguNDI5Njg4IDguNDc2NTYyIDkuMDUwNzgxIDcuODgyODEyIEMgOS43ODEyNSA3LjE4MzU5NCA5Ljk2ODc1IDYuODMyMDMxIDkuOTc2NTYyIDYuMjEwOTM4IEMgOS45NzY1NjIgNS4zMTY0MDYgOS4zOTg0MzggNC40MTAxNTYgOC41NzgxMjUgNC4wMDM5MDYgQyA4LjA4NTkzOCAzLjc2NTYyNSA3LjI2NTYyNSAzLjY5MTQwNiA2Ljc4OTA2MiAzLjg0NzY1NiBaIE0gNi43ODkwNjIgMy44NDc2NTYgIi8+CjxwYXRoIHN0eWxlPSIgc3Ryb2tlOm5vbmU7ZmlsbC1ydWxlOm5vbnplcm87ZmlsbDpyZ2IoMCUsMCUsMCUpO2ZpbGwtb3BhY2l0eToxOyIgZD0iTSA2Ljg5ODQzOCAxMC42MTMyODEgTCA2Ljg5ODQzOCAxMS4yNSBMIDguMTAxNTYyIDExLjI1IEwgOC4xMDE1NjIgOS45NzY1NjIgTCA2Ljg5ODQzOCA5Ljk3NjU2MiBaIE0gNi44OTg0MzggMTAuNjEzMjgxICIvPgo8L2c+Cjwvc3ZnPgo=+CjxnIGlkPSJzdXJmYWNlMSI+CjxwYXRoIHN0eWxlPSIgc3Ryb2tlOm5vbmU7ZmlsbC1ydWxlOm5vbnplcm87ZmlsbDpyZ2IoMCUsMCUsMCUpO2ZpbGwtb3BhY2l0eToxOyIgZD0iTSA2LjIyNjU2MiAxLjM3ODkwNiBDIDQuMjMwNDY5IDEuODM1OTM4IDIuNjk5MjE5IDMuMDc0MjE5IDEuODI4MTI1IDQuODk4NDM4IEMgMS40MTAxNTYgNS43OTY4NzUgMS4zMTI1IDYuMjc3MzQ0IDEuMzEyNSA3LjUgQyAxLjMxMjUgOC43MjI2NTYgMS40MTAxNTYgOS4yMDMxMjUgMS44MzU5MzggMTAuMTAxNTYyIEMgMi40ODQzNzUgMTEuNDc2NTYyIDMuNTE1NjI1IDEyLjUxNTYyNSA0Ljg4MjgxMiAxMy4xNTYyNSBDIDUuNjkxNDA2IDEzLjUzOTA2MiA2LjIyNjU2MiAxMy42NjQwNjIgNy4yNjE3MTkgMTMuNzAzMTI1IEMgOC4wMjM0MzggMTMuNzM4MjgxIDguMjg5MDYyIDEzLjcxODc1IDguODc4OTA2IDEzLjU4MjAzMSBDIDExLjIyNjU2MiAxMy4wMzUxNTYgMTMuMDM1MTU2IDExLjIyNjU2MiAxMy41ODIwMzEgOC44Nzg5MDYgQyAxMy43MTg3NSA4LjI4OTA2MiAxMy43MzgyODEgOC4wMjM0MzggMTMuNzAzMTI1IDcuMjYxNzE5IEMgMTMuNjY0MDYyIDYuMjI2NTYyIDEzLjUzOTA2MiA1LjY5MTQwNiAxMy4xNTYyNSA0Ljg4MjgxMiBDIDEyLjM3NSAzLjIxODc1IDEwLjg2NzE4OCAxLjk0MTQwNiA5LjExMzI4MSAxLjQ1MzEyNSBDIDguNTE5NTMxIDEuMjg5MDYyIDYuNzk2ODc1IDEuMjQ2MDk0IDYuMjI2NTYyIDEuMzc4OTA2IFogTSA4LjMyNDIxOSAyLjU3ODEyNSBDIDkuNDMzNTk0IDIuNzgxMjUgMTAuMzUxNTYyIDMuMjYxNzE5IDExLjEwMTU2MiA0LjA1MDc4MSBDIDEyLjk4NDM3NSA2LjAyMzQzOCAxMi45NTMxMjUgOS4wODk4NDQgMTEuMDE1NjI1IDExLjAxNTYyNSBDIDkuMDUwNzgxIDEyLjk4NDM3NSA1Ljk0OTIxOSAxMi45ODQzNzUgMy45ODQzNzUgMTEuMDE1NjI1IEMgMi44NzEwOTQgOS45MDYyNSAyLjMzMjAzMSA4LjM1NTQ2OSAyLjU1MDc4MSA2Ljg4NjcxOSBDIDIuODcxMDk0IDQuNjQ4NDM4IDQuNDQ5MjE5IDIuOTkyMTg4IDYuNjM2NzE5IDIuNTg1OTM4IEMgNy4zMjAzMTIgMi40NjA5MzggNy42NDA2MjUgMi40NjA5MzggOC4zMjQyMTkgMi41NzgxMjUgWiBNIDguMzI0MjE5IDIuNTc4MTI1ICIvPgo8cGF0aCBzdHlsZT0iIHN0cm9rZTpub25lO2ZpbGwtcnVsZTpub256ZXJvO2ZpbGw6cmdiKDAlLDAlLDAlKTtmaWxsLW9wYWNpdHk6MTsiIGQ9Ik0gNi43ODkwNjIgMy44NDc2NTYgQyA2LjM1MTU2MiAzLjk4ODI4MSA2LjE3MTg3NSA0LjEwMTU2MiA1Ljc5Njg3NSA0LjQ0OTIxOSBDIDUuMzkwNjI1IDQuODI0MjE5IDUuMTA5Mzc1IDUuMzU1NDY5IDUuMDQ2ODc1IDUuODU5Mzc1IEwgNS4wMDM5MDYgNi4yMjY1NjIgTCA2LjIxODc1IDYuMjI2NTYyIEwgNi4yOTI5NjkgNS45NjA5MzggQyA2LjQ0OTIxOSA1LjM3ODkwNiA2LjkwNjI1IDUuMDIzNDM4IDcuNSA1LjAyMzQzOCBDIDguMTk5MjE5IDUuMDIzNDM4IDguNzMwNDY5IDUuNTQyOTY5IDguNzMwNDY5IDYuMjI2NTYyIEMgOC43MzA0NjkgNi42ODM1OTQgOC42MDE1NjIgNi44NzEwOTQgNy45NDE0MDYgNy40MTAxNTYgQyA3LjIyMjY1NiA4LjAwMzkwNiA2Ljg5ODQzOCA4LjUyNzM0NCA2Ljg5ODQzOCA5LjEyMTA5NCBMIDYuODk4NDM4IDkuMzc1IEwgNy41IDkuMzc1IEMgOC4wOTM3NSA5LjM3NSA4LjEwMTU2MiA5LjM3NSA4LjEzNjcxOSA5LjE2NDA2MiBDIDguMjI2NTYyIDguNzYxNzE5IDguNDI5Njg4IDguNDc2NTYyIDkuMDUwNzgxIDcuODgyODEyIEMgOS43ODEyNSA3LjE4MzU5NCA5Ljk2ODc1IDYuODMyMDMxIDkuOTc2NTYyIDYuMjEwOTM4IEMgOS45NzY1NjIgNS4zMTY0MDYgOS4zOTg0MzggNC40MTAxNTYgOC41NzgxMjUgNC4wMDM5MDYgQyA4LjA4NTkzOCAzLjc2NTYyNSA3LjI2NTYyNSAzLjY5MTQwNiA2Ljc4OTA2MiAzLjg0NzY1NiBaIE0gNi43ODkwNjIgMy44NDc2NTYgIi8+CjxwYXRoIHN0eWxlPSIgc3Ryb2tlOm5vbmU7ZmlsbC1ydWxlOm5vbnplcm87ZmlsbDpyZ2IoMCUsMCUsMCUpO2ZpbGwtb3BhY2l0eToxOyIgZD0iTSA2Ljg5ODQzOCAxMC42MTMyODEgTCA2Ljg5ODQzOCAxMS4yNSBMIDguMTAxNTYyIDExLjI1IEwgOC4xMDE1NjIgOS45NzY1NjIgTCA2Ljg5ODQzOCA5Ljk3NjU2MiBaIE0gNi44OTg0MzggMTAuNjEzMjgxICIvPgo8L2c+Cjwvc3ZnPgo='
     }
 }
