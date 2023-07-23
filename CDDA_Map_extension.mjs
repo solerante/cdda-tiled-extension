@@ -2664,12 +2664,14 @@ function importMapChoiceDialog() {
     let entriesPerPage = 10;
     let columns = 2;
     let checkboxes = [];
+    let placeholders = [];
     let subMapInstructions = `Select maps (om_terrains or [n] nested) to import from map file.\n
 Maps with different sizes will all import with largest size.
 MouseOver tooltips not formatted - for preview only.\n
 Don't forget to SAVE YOUR MAP`
 
     let dialog = new Dialog()
+
     dialog.windowTitle = `Select Maps to Import`
     dialog.addSeparator(`Select Map`)
     let filePicker = dialog.addFilePicker(`Select Map`)
@@ -2684,8 +2686,70 @@ Don't forget to SAVE YOUR MAP`
     let acceptButton = dialog.addButton(`Accept`);
     dialog.addNewRow();
     let submapPageBackButton = dialog.addButton(`<`, false)
-    let submapPageLabel = dialog.addLabel(` pg ${pageNum} `, false)
     let submapPageForwardButton = dialog.addButton(`>`, false)
+    let submapPageLabel = dialog.addLabel(` pg ${pageNum} `, false)
+    dialog.addLabel(""); // Empty label for spacing
+    dialog.addNewRow();
+    let selectAllButton = dialog.addButton(`✔️ all`);
+    let deselectAllButton = dialog.addButton(`❌ all`);
+    dialog.addLabel(""); // Empty label for spacing
+    dialog.addNewRow();
+
+    selectAllButton.styleSheet = `
+        QPushButton {
+            color: white;
+        }
+    `;
+
+    deselectAllButton.styleSheet = `
+        QPushButton {
+            color: white;
+        }
+    `;
+    let buttonStyle = `
+        QPushButton {
+            min-width: 60px; 
+            max-width: 60px; 
+            min-height: 20px; 
+            max-height: 20px;
+            border: 1px solid #ffffff; /* White border */
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 2px 1px;
+            transition-duration: 0.4s;
+            cursor: pointer;
+        }
+        QPushButton:hover {
+            background-color: #708090; /* Slate Gray */
+        }
+    `;
+
+    submapPageBackButton.styleSheet = buttonStyle;
+    submapPageForwardButton.styleSheet = buttonStyle;
+    selectAllButton.styleSheet = buttonStyle;
+    deselectAllButton.styleSheet = buttonStyle;
+    submapPageLabel.styleSheet = `
+        QLabel {
+            min-width: 100px; 
+            max-width: 100px; 
+            min-height: 20px; 
+            max-height: 20px;
+        }
+    `;
+    dialog.styleSheet = `
+        QToolTip {
+            color: #ffffff; /* white text */
+            background-color: #333333; /* dark gray background */
+            border: 1px solid white;
+            font-family: "Courier New", monospace;
+            max-width: 400px;
+            word-wrap: break-word;
+        }
+    `;
+
     if (config.pathToLastImportMap && File.exists(config.pathToLastImportMap)){
         filePicker.fileUrl = config.pathToLastImportMap;
     } else {
@@ -2727,14 +2791,37 @@ Don't forget to SAVE YOUR MAP`
     });
     
 
+    function createPlaceholders() {
+        // Remove old placeholders
+        placeholders = [];
+    
+        // Set newRowMode to SingleWidgetRows to allow each placeholder to occupy its own row
+        dialog.newRowMode = 'SingleWidgetRows';
+        
+        for (let i = 0; i < entriesPerPage; i++) {
+            let placeholder = dialog.addLabel("");
+            placeholder.styleSheet = "min-height: 20px; max-height: 20px;"; // Set height to match checkboxes
+            placeholder.visible = false;
+            placeholders.push(placeholder);
+        }
+    
+        // Reset newRowMode to SameWidgetRows after creating the placeholders
+        dialog.newRowMode = 'SameWidgetRows';
+    }
+    
     function updateSubMapChoices() {
         if(!File.exists(selectedMapPath)){ return; }
         // Hide old checkboxes
         checkboxes.forEach(function(checkbox) {
             checkbox.visible = false;
         });
+        placeholders.forEach(function(placeholder) {
+            placeholder.visible = false;
+        });
         checkboxes = [];
+        pageNum = 0; // Reset page number
         readImportMapFile(selectedMapPath);
+        createPlaceholders(); // Create new placeholders
         showPage(pageNum);
     }
     function updatePageButtons() {
@@ -2837,27 +2924,58 @@ Don't forget to SAVE YOUR MAP`
 
     };
     
+
     function showPage(pageNum) {
         let start = pageNum * entriesPerPage;
         let keys = Object.keys(mapEntriesToImport);
         let end = Math.min(start + entriesPerPage, keys.length);
+        let lastPage = pageNum === Math.ceil(keys.length / entriesPerPage) - 1;
         
-        // Hide all checkboxes
+        // Hide all checkboxes and placeholders
         checkboxes.forEach(function(checkbox) {
             checkbox.visible = false;
         });
+        placeholders.forEach(function(placeholder) {
+            placeholder.visible = false;
+        });
+        
         // Show checkboxes for current page
         for (let i = start; i < end; i++) {
             let entry = mapEntriesToImport[keys[i]];
             entry.checkbox.visible = true;
             entry.checkbox.checked = entry.selected;
         }
+        
+        // If this is the last page and the total number of entries isn't a multiple of entriesPerPage,
+        // show placeholders to fill the unused spots
+        if (lastPage) {
+            let numPlaceholders = entriesPerPage - (keys.length % entriesPerPage);
+            for (let i = 0; i < numPlaceholders; i++) {
+                placeholders[i].visible = true;
+            }
+        }
+
         updatePageButtons();
     }
-    
-    
 
-
+    selectAllButton.clicked.connect(function () {
+        checkboxes.forEach(function(checkbox) {
+            checkbox.checked = true;
+        });
+        for (let key in mapEntriesToImport) {
+            mapEntriesToImport[key].selected = true;
+        }
+    });
+    
+    deselectAllButton.clicked.connect(function () {
+        checkboxes.forEach(function(checkbox) {
+            checkbox.checked = false;
+        });
+        for (let key in mapEntriesToImport) {
+            mapEntriesToImport[key].selected = false;
+        }
+    });
+    
 
     acceptButton.clicked.connect(function () {
         dialog.accept();
