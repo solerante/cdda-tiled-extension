@@ -5,9 +5,9 @@ Add the extension and extras folder to your [Tiled](https://www.mapeditor.org/) 
 
 The 'extras' folder contains png images for the extension tileset. This adds relative tiles like region groundcover.
 
-## Update v0.2.2
+## Update v0.3.0
 
-Last Version for Tiled 1.9.2
+Tiled 1.10!
 
 ### [Check out the wiki for details and how-to](https://github.com/solerante/tiled-cdda-map-extension/wiki)
 
@@ -46,6 +46,5 @@ What kind of works
     - [ ] { object : { `items` : {} } }
     - [ ] { object : { `toilets` : {} } }
     - [ ] { object : { `vendingmachines` : {} } }
-    - [ ] { object : { `toilets` : {} } }
     - [ ] { object : { `vehicles` : {} } }
     - [ ] { object : { `NPC` : {} } }
